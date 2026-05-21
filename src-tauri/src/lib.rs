@@ -30,6 +30,7 @@ fn load_config(app: tauri::AppHandle) -> AppConfig {
             .and_then(|v| v.as_str().map(String::from))
             .unwrap_or_default(),
         posts_path: store.get("posts_path")
+            .or_else(|| store.get("postsPath"))
             .and_then(|v| v.as_str().map(String::from))
             .unwrap_or_default(),
     }
@@ -57,10 +58,6 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![is_tauri, load_config, save_config])
-        .setup(|app| {
-            let _ = app.store("config.json");
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

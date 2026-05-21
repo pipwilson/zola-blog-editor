@@ -1,0 +1,725 @@
+// ── Tauri integration ──────────────────────────────────────────────
+// Config is persisted via custom Rust commands (load_config / save_config)
+// which use the store plugin's Rust API directly.
+// Falls back to sessionStorage when running outside Tauri.
+
+function tauriInvoke(cmd, args) {
+  return window.__TAURI_INTERNALS__.invoke(cmd, args);
+}
+
+async function loadPersistedConfig() {
+  if (!window.__TAURI_INTERNALS__) return null;
+  try {
+    const c = await tauriInvoke('load_config');
+    console.log('loaded config:', c);
+    return c;
+  } catch (e) {
+    console.warn('load_config failed:', e);
+    return null;
+  }
+}
+
+async function savePersistedConfig() {
+  if (!window.__TAURI_INTERNALS__) {
+    sessionStorage.setItem('cfg', JSON.stringify(cfg));
+    return;
+  }
+  try {
+    await tauriInvoke('save_config', {
+      token:     cfg.token,
+      repo:      cfg.repo,
+      branch:    cfg.branch,
+      postsPath: cfg.postsPath,
+    });
+    console.log('config saved');
+  } catch (e) {
+    console.warn('save_config failed:', e);
+  }
+}
+
+// ── Token validation & repo combobox ──────────────────────────────
+let _allRepos = [];
+let _repoDropdownIdx = -1;
+
+window.validateToken = async function() {
+  const token = document.getElementById('cfg-token').value.trim();
+  if (!token) { toast('paste a token first', 'error'); return; }
+
+  const btn = document.getElementById('token-validate-btn');
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    // Fetch all accessible repos (paginate up to 500)
+    let page = 1, all = [];
+    while (page <= 5) {
+      const res = await fetch(
+        `https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated&affiliation=owner,collaborator,organization_member`,
+        { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } }
+      );
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
+      const batch = await res.json();
+      all = all.concat(batch);
+      if (batch.length < 100) break;
+      page++;
+    }
+    _allRepos = all.map(r => r.full_name).sort((a, b) => a.localeCompare(b));
+    toast(`found ${_allRepos.length} repo${_allRepos.length !== 1 ? 's' : ''}`);
+    document.getElementById('cfg-repo').placeholder = 'type to search repos…';
+    renderRepoDropdown(_allRepos);
+    showRepoDropdown();
+    document.getElementById('cfg-repo').focus();
+  } catch (e) {
+    toast('token error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'OK →';
+  }
+};
+
+function renderRepoDropdown(repos) {
+  const dd = document.getElementById('repo-dropdown');
+  if (!repos.length) {
+    dd.innerHTML = '<div class="repo-option no-match">no repos found</div>';
+  } else {
+    dd.innerHTML = repos.map((r, i) =>
+      `<div class="repo-option" data-repo="${r}" onmousedown="selectRepo('${r}')">${r}</div>`
+    ).join('');
+  }
+  _repoDropdownIdx = -1;
+}
+
+window.filterRepos = function(val) {
+  if (!_allRepos.length) return;
+  const lower = val.toLowerCase();
+  const filtered = val ? _allRepos.filter(r => r.toLowerCase().includes(lower)) : _allRepos;
+  renderRepoDropdown(filtered);
+  showRepoDropdown();
+};
+
+window.showRepoDropdown = function() {
+  if (!_allRepos.length) return;
+  document.getElementById('repo-dropdown').classList.add('show');
+};
+
+function hideRepoDropdown() {
+  document.getElementById('repo-dropdown').classList.remove('show');
+  _repoDropdownIdx = -1;
+}
+
+window.selectRepo = function(name) {
+  document.getElementById('cfg-repo').value = name;
+  hideRepoDropdown();
+};
+
+window.repoKeydown = function(e) {
+  const dd = document.getElementById('repo-dropdown');
+  const items = dd.querySelectorAll('.repo-option:not(.no-match)');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _repoDropdownIdx = Math.min(_repoDropdownIdx + 1, items.length - 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _repoDropdownIdx = Math.max(_repoDropdownIdx - 1, 0);
+  } else if (e.key === 'Enter' && _repoDropdownIdx >= 0) {
+    e.preventDefault();
+    selectRepo(items[_repoDropdownIdx].dataset.repo);
+    return;
+  } else if (e.key === 'Escape') {
+    hideRepoDropdown(); return;
+  } else { return; }
+  items.forEach((el, i) => el.classList.toggle('active', i === _repoDropdownIdx));
+  items[_repoDropdownIdx]?.scrollIntoView({ block: 'nearest' });
+};
+
+// Close dropdown when clicking outside
+document.addEventListener('mousedown', e => {
+  if (!document.getElementById('repo-combobox').contains(e.target)) hideRepoDropdown();
+});
+
+// ── State ──────────────────────────────────────────────────────────
+let cfg = { token: '', repo: '', branch: 'main', postsPath: 'content/blog' };
+let _treeItems = [];      // [{path, type, sha, relPath}] from GitHub tree API
+let _expandedDirs = new Set();
+let _fileMetaCache = new Map(); // path -> {title, draft, date}
+let _searchFilter = '';
+let currentPost = null;
+let dirty = false;
+let previewing = false;
+let slugEdited = false;
+
+window.slugEdited = false; // expose for oninput handler
+
+// ── UI helpers ────────────────────────────────────────────────────
+function toast(msg, type = '', dur = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type === 'error' ? 'show error' : 'show';
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.className = '', dur);
+}
+
+function setStatus(path, words, chars) {
+  if (path !== undefined) document.getElementById('status-path').textContent = path;
+  if (words !== undefined) document.getElementById('status-words').textContent = words + ' words';
+  if (chars !== undefined) document.getElementById('status-chars').textContent = chars + ' chars';
+}
+
+function markDirty() {
+  dirty = true;
+}
+
+function markClean() {
+  dirty = false;
+}
+
+function updateWordCount() {
+  const text = document.getElementById('md-editor').value;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const chars = text.length;
+  setStatus(undefined, words, chars);
+}
+
+window.markDirty = markDirty;
+window.updatePreview = updatePreview;
+window.updateWordCount = updateWordCount;
+
+// ── Frontmatter helpers ───────────────────────────────────────────
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function slugify(str) {
+  return str.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[\s]+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+window.autoSlug = function() {
+  if (slugEdited) return;
+  const title = document.getElementById('post-title-input').value;
+  document.getElementById('fm-slug').value = slugify(title);
+};
+
+function buildFrontmatter({ title, isDraft, date, tags, slug, description }) {
+  const d = date || todayISO();
+  const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+  let fm = `+++\ntitle = "${title}"\ndate = ${d}\n`;
+  if (isDraft) fm += `draft = true\n`;
+  if (description) fm += `description = "${description}"\n`;
+  if (tagList.length) fm += `\n[taxonomies]\ntags = [${tagList.map(t => `"${t}"`).join(', ')}]\n`;
+  fm += `+++\n\n`;
+  return fm;
+}
+
+function parseFrontmatter(raw) {
+  const m = raw.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+\n?([\s\S]*)$/);
+  if (!m) return { title: '', draft: false, date: '', tags: '', description: '', body: raw };
+  const header = m[1];
+  const body = m[2].replace(/^\n/, '');
+  const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
+  const draft = /draft\s*=\s*true/.test(header);
+  const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
+  const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
+  const tagMatch = header.match(/tags\s*=\s*\[([^\]]*)\]/);
+  const tags = tagMatch ? tagMatch[1].replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
+  return { title, draft, date, tags, description, body };
+}
+
+// ── GitHub API ────────────────────────────────────────────────────
+async function ghFetch(path, opts = {}) {
+  if (!cfg.token || !cfg.repo) { openSettings(); throw new Error('not configured'); }
+  const url = `https://api.github.com/repos/${cfg.repo}/${path}`;
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function commitFile(path, content, sha, message) {
+  const encoded = btoa(unescape(encodeURIComponent(content)));
+  const body = { message, content: encoded, branch: cfg.branch };
+  if (sha) body.sha = sha;
+  const result = await ghFetch(`contents/${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return result;
+}
+
+// ── File tree ─────────────────────────────────────────────────────
+window.loadPosts = async function() {
+  if (!cfg.token || !cfg.repo) { openSettings(); return; }
+  setStatus('loading…');
+  try {
+    const branchData = await ghFetch(`branches/${cfg.branch}`);
+    const treeSha = branchData.commit.commit.tree.sha;
+    const treeData = await ghFetch(`git/trees/${treeSha}?recursive=1`);
+
+    const prefix = cfg.postsPath.replace(/\/$/, '');
+    _treeItems = treeData.tree
+      .filter(item => item.path.startsWith(prefix + '/') || item.path === prefix)
+      .map(item => ({
+        path: item.path,
+        type: item.type,   // 'blob' | 'tree'
+        sha: item.sha,
+        relPath: item.path.slice(prefix.length + 1) || ''
+      }));
+
+    // Expand root + immediate subdirectories by default
+    _expandedDirs = new Set([prefix]);
+    _treeItems
+      .filter(i => i.type === 'tree' && !i.relPath.includes('/'))
+      .forEach(i => _expandedDirs.add(i.path));
+
+    renderTree();
+    setStatus(currentPost ? currentPost.path : 'select a file');
+  } catch (e) {
+    console.error('loadPosts failed:', e);
+    setStatus('not connected');
+    document.getElementById('post-list').innerHTML = `
+      <div style="padding:16px 10px;color:var(--text3);font-size:11px;line-height:1.6;">
+        <div style="color:var(--danger);margin-bottom:8px;">⚠ could not connect</div>
+        <div style="margin-bottom:12px;word-break:break-word;">${escapeHtml(e.message)}</div>
+        <button onclick="loadPosts()" style="margin-bottom:6px;width:100%">↺ retry</button>
+        <button onclick="openSettings()" style="width:100%">⚙ settings</button>
+      </div>`;
+  }
+};
+
+function treeChildren(parentPath) {
+  return _treeItems
+    .filter(item => item.path.substring(0, item.path.lastIndexOf('/')) === parentPath)
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'tree' ? -1 : 1;
+      return a.path.localeCompare(b.path);
+    });
+}
+
+function dirHasMatch(dirPath) {
+  if (!_searchFilter) return true;
+  return _treeItems.some(item =>
+    item.type === 'blob' &&
+    item.path.startsWith(dirPath + '/') &&
+    item.path.split('/').pop().toLowerCase().includes(_searchFilter)
+  );
+}
+
+function renderTreeNodes(parentPath, depth) {
+  let html = '';
+  const pad = depth * 14;
+  for (const item of treeChildren(parentPath)) {
+    const name = item.path.split('/').pop();
+    if (item.type === 'tree') {
+      if (!dirHasMatch(item.path)) continue;
+      const exp = _expandedDirs.has(item.path);
+      html += `<div class="tree-item tree-dir" style="padding-left:${8 + pad}px"
+                    onclick="window.toggleDir('${item.path}')">
+        <span class="tree-arrow">${exp ? '▾' : '▸'}</span>
+        <span class="tree-name">${escapeHtml(name)}</span>
+      </div>`;
+      if (exp) html += renderTreeNodes(item.path, depth + 1);
+    } else {
+      if (_searchFilter && !name.toLowerCase().includes(_searchFilter)) continue;
+      const active = currentPost && currentPost.path === item.path;
+      const meta = _fileMetaCache.get(item.path);
+      const label = meta ? (meta.title || name.replace(/\.md$/, '')) : name.replace(/\.md$/, '');
+      html += `<div class="tree-item tree-file${active ? ' active' : ''}"
+                    style="padding-left:${22 + pad}px"
+                    onclick="window.openTreeFile('${item.path}', '${item.sha}')">
+        <span class="tree-name">${escapeHtml(label)}</span>
+        ${meta ? `<span class="badge ${meta.draft ? 'badge-draft' : 'badge-pub'}">${meta.draft ? 'draft' : 'live'}</span>` : ''}
+      </div>`;
+    }
+  }
+  return html;
+}
+
+function renderTree() {
+  const prefix = cfg.postsPath.replace(/\/$/, '');
+  document.getElementById('post-list').innerHTML = renderTreeNodes(prefix, 0);
+}
+
+window.toggleDir = function(path) {
+  if (_expandedDirs.has(path)) _expandedDirs.delete(path);
+  else _expandedDirs.add(path);
+  renderTree();
+};
+
+window.filterPosts = function(val) {
+  _searchFilter = val.toLowerCase();
+  // Expand everything while searching so results are visible
+  if (_searchFilter) _treeItems.filter(i => i.type === 'tree').forEach(i => _expandedDirs.add(i.path));
+  renderTree();
+};
+
+window.openTreeFile = async function(path, sha) {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  try {
+    const data = await ghFetch(`contents/${path}?ref=${cfg.branch}`);
+    const raw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+    const fm = parseFrontmatter(raw);
+    currentPost = { name: path.split('/').pop(), path, sha: data.sha, raw, draft: fm.draft, title: fm.title, date: fm.date };
+    _fileMetaCache.set(path, { title: fm.title, draft: fm.draft, date: fm.date });
+    markClean();
+    document.getElementById('post-title-input').value = fm.title;
+    document.getElementById('md-editor').value = fm.body;
+    document.getElementById('fm-date').value = fm.date || todayISO();
+    document.getElementById('fm-tags').value = fm.tags;
+    document.getElementById('fm-slug').value = path.split('/').pop().replace(/\.md$/, '');
+    document.getElementById('fm-description').value = fm.description;
+    slugEdited = true;
+    document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
+    setStatus(path);
+    updateWordCount();
+    updatePreview();
+    renderTree();
+  } catch (e) {
+    toast('could not open: ' + e.message, 'error');
+  }
+};
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── New post ──────────────────────────────────────────────────────
+window.newPost = function() {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  currentPost = null;
+  markClean();
+  slugEdited = false;
+  document.getElementById('post-title-input').value = '';
+  document.getElementById('md-editor').value = '';
+  document.getElementById('fm-date').value = todayISO();
+  document.getElementById('fm-tags').value = '';
+  document.getElementById('fm-slug').value = '';
+  document.getElementById('fm-description').value = '';
+  document.getElementById('unpub-btn').style.display = 'none';
+  renderTree();
+  setStatus('new post', 0, 0);
+  document.getElementById('post-title-input').focus();
+};
+
+// ── Get current content ───────────────────────────────────────────
+function getCurrentContent(isDraft) {
+  const title = document.getElementById('post-title-input').value || 'Untitled';
+  const body = document.getElementById('md-editor').value;
+  const date = document.getElementById('fm-date').value || todayISO();
+  const tags = document.getElementById('fm-tags').value;
+  const description = document.getElementById('fm-description').value;
+  return buildFrontmatter({ title, isDraft, date, tags, description }) + body;
+}
+
+function getSlug() {
+  const s = document.getElementById('fm-slug').value.trim();
+  if (s) return s;
+  return slugify(document.getElementById('post-title-input').value || 'untitled');
+}
+
+async function getExistingSha(path) {
+  try {
+    const data = await ghFetch(`contents/${path}?ref=${cfg.branch}`);
+    return data.sha;
+  } catch {
+    return null;
+  }
+}
+
+// ── Save draft ────────────────────────────────────────────────────
+window.saveDraft = async function() {
+  if (!cfg.token) { openSettings(); return; }
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(true);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  document.getElementById('save-btn').disabled = true;
+  setStatus('saving…');
+  try {
+    const sha = currentPost && currentPost.path === path
+      ? currentPost.sha
+      : await getExistingSha(path);
+
+    const result = await commitFile(path, content, sha, `draft: ${title}`);
+    markClean();
+    toast('draft saved');
+
+    // Update local state
+    const newSha = result.content.sha;
+    if (currentPost && currentPost.path === path) {
+      currentPost.sha = newSha;
+      currentPost.raw = content;
+      currentPost.draft = true;
+      currentPost.title = title;
+      _fileMetaCache.set(path, { title, draft: true, date: document.getElementById('fm-date').value });
+    } else {
+      await loadPosts();
+      currentPost = { name: path.split('/').pop(), path, sha: newSha, raw: content, draft: true, title };
+    }
+    document.getElementById('unpub-btn').style.display = 'none';
+    renderTree();
+    setStatus(path);
+  } catch (e) {
+    toast('save failed: ' + e.message, 'error');
+    setStatus('save failed');
+  } finally {
+    document.getElementById('save-btn').disabled = false;
+  }
+};
+
+// ── Publish ───────────────────────────────────────────────────────
+window.publish = async function() {
+  if (!cfg.token) { openSettings(); return; }
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(false);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  document.getElementById('pub-btn').disabled = true;
+  setStatus('publishing…');
+  try {
+    const sha = currentPost && currentPost.path === path
+      ? currentPost.sha
+      : await getExistingSha(path);
+
+    const result = await commitFile(path, content, sha, `publish: ${title}`);
+    markClean();
+    toast('published! 🎉');
+
+    const newSha = result.content.sha;
+    if (currentPost && currentPost.path === path) {
+      currentPost.sha = newSha;
+      currentPost.raw = content;
+      currentPost.draft = false;
+      currentPost.title = title;
+      _fileMetaCache.set(path, { title, draft: false, date: document.getElementById('fm-date').value });
+    } else {
+      await loadPosts();
+      currentPost = { name: path.split('/').pop(), path, sha: newSha, raw: content, draft: false, title };
+    }
+    document.getElementById('unpub-btn').style.display = 'inline-flex';
+    renderTree();
+    setStatus(path);
+  } catch (e) {
+    toast('publish failed: ' + e.message, 'error');
+    setStatus('publish failed');
+  } finally {
+    document.getElementById('pub-btn').disabled = false;
+  }
+};
+
+// ── Unpublish (re-save as draft) ──────────────────────────────────
+window.unpublish = async function() {
+  if (!confirm('Move this post back to draft? It will still exist in your repo but Zola won\'t build it.')) return;
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(true);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  try {
+    const sha = currentPost && currentPost.path === path ? currentPost.sha : await getExistingSha(path);
+    const result = await commitFile(path, content, sha, `draft: ${title}`);
+    markClean();
+    toast('moved to draft');
+    if (currentPost) {
+      currentPost.sha = result.content.sha;
+      currentPost.draft = true;
+      _fileMetaCache.set(slug === getSlug() ? path : currentPost.path,
+        { title: document.getElementById('post-title-input').value, draft: true, date: document.getElementById('fm-date').value });
+    }
+    document.getElementById('unpub-btn').style.display = 'none';
+    renderTree();
+  } catch (e) {
+    toast('failed: ' + e.message, 'error');
+  }
+};
+
+// ── Preview ───────────────────────────────────────────────────────
+window.togglePreview = function() {
+  previewing = !previewing;
+  const btn = document.getElementById('preview-btn');
+  const ed = document.getElementById('md-editor');
+  const pv = document.getElementById('preview-pane');
+  const sp = document.getElementById('splitter');
+  if (previewing) {
+    updatePreview();
+    ed.style.flex = '1';
+    pv.style.display = 'block';
+    pv.style.flex = '1';
+    sp.style.display = 'block';
+    btn.textContent = '✕ preview';
+  } else {
+    pv.style.display = 'none';
+    sp.style.display = 'none';
+    btn.textContent = '◎ preview';
+  }
+};
+
+function updatePreview() {
+  if (!previewing) return;
+  const md = document.getElementById('md-editor').value;
+  // Basic Markdown renderer
+  let html = md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code class="lang-${lang}">${code}</code></pre>`)
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/^#{6} (.+)$/gm, '<h6>$1</h6>')
+    .replace(/^#{5} (.+)$/gm, '<h5>$1</h5>')
+    .replace(/^#{4} (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^---$/gm, '<hr/>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
+    .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
+    .replace(/<p><\/p>/g, '');
+  document.getElementById('preview-pane').innerHTML = html;
+}
+
+window.updatePreview = updatePreview;
+
+// ── Settings modal ────────────────────────────────────────────────
+let _configRequired = false;
+
+window.openSettings = function() {
+  _configRequired = !cfg.token || !cfg.repo;
+  document.getElementById('cfg-token').value = cfg.token;
+  document.getElementById('cfg-repo').value = cfg.repo;
+  document.getElementById('cfg-branch').value = cfg.branch;
+  document.getElementById('cfg-path').value = cfg.postsPath;
+  // Seed dropdown with current repo so it's selectable even before re-validating
+  if (cfg.repo && !_allRepos.includes(cfg.repo)) {
+    _allRepos = [cfg.repo, ..._allRepos.filter(r => r !== cfg.repo)];
+    renderRepoDropdown(_allRepos);
+  }
+  // Show/hide cancel button depending on whether config is required
+  document.getElementById('modal-cancel-btn').style.display = _configRequired ? 'none' : '';
+  document.getElementById('modal-title').textContent =
+    _configRequired ? 'Connect to GitHub to continue' : 'GitHub settings';
+  document.getElementById('modal-overlay').classList.add('show');
+  setTimeout(() => document.getElementById(cfg.token ? 'cfg-repo' : 'cfg-token').focus(), 50);
+};
+
+window.closeModal = function() {
+  if (_configRequired) return;
+  document.getElementById('modal-overlay').classList.remove('show');
+};
+
+window.modalOk = async function() {
+  const token = document.getElementById('cfg-token').value.trim();
+  const repo = document.getElementById('cfg-repo').value.trim();
+  const branch = document.getElementById('cfg-branch').value.trim() || 'main';
+  const postsPath = document.getElementById('cfg-path').value.trim() || 'content/blog';
+
+  if (!token || !repo) { toast('token and repo are required', 'error'); return; }
+
+  cfg = { token, repo, branch, postsPath };
+  _configRequired = false;
+
+  await savePersistedConfig();
+
+  document.getElementById('repo-display-text').textContent = `${repo} (${branch})`;
+  document.getElementById('modal-overlay').classList.remove('show');
+  await loadPosts();
+};
+
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay') && !_configRequired) closeModal();
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('modal-overlay').classList.contains('show')) {
+    e.preventDefault();
+    closeModal(); // no-op when _configRequired
+    return;
+  }
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); saveDraft(); }
+    if (e.key === 'Enter') { e.preventDefault(); publish(); }
+    if (e.key === 'n') { e.preventDefault(); newPost(); }
+    if (e.key === 'p') { e.preventDefault(); togglePreview(); }
+    if (e.key === ',') { e.preventDefault(); openSettings(); }
+  }
+});
+
+// ── Splitter drag ─────────────────────────────────────────────────
+const splitter = document.getElementById('splitter');
+let dragging = false;
+let startX, startEditorWidth;
+splitter.addEventListener('mousedown', e => {
+  dragging = true;
+  startX = e.clientX;
+  startEditorWidth = document.getElementById('md-editor').offsetWidth;
+  splitter.classList.add('dragging');
+  e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - startX;
+  const ed = document.getElementById('md-editor');
+  const pv = document.getElementById('preview-pane');
+  const total = ed.offsetWidth + pv.offsetWidth;
+  const newEdWidth = Math.max(200, Math.min(total - 200, startEditorWidth + dx));
+  ed.style.flex = 'none';
+  ed.style.width = newEdWidth + 'px';
+  pv.style.flex = '1';
+});
+document.addEventListener('mouseup', () => {
+  dragging = false;
+  splitter.classList.remove('dragging');
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+async function init() {
+  try {
+    // Try loading from Tauri store; fall back to sessionStorage
+    const saved = await loadPersistedConfig()
+      || JSON.parse(sessionStorage.getItem('cfg') || 'null');
+
+    if (saved) {
+      if (saved.token)     cfg.token     = saved.token;
+      if (saved.repo)      cfg.repo      = saved.repo;
+      if (saved.branch)    cfg.branch    = saved.branch;
+      // Rust returns posts_path (snake_case); JS config uses postsPath
+      if (saved.postsPath || saved.posts_path)
+        cfg.postsPath = saved.postsPath || saved.posts_path;
+    }
+
+    if (cfg.repo) {
+      document.getElementById('repo-display-text').textContent =
+        `${cfg.repo} (${cfg.branch})`;
+    }
+
+    if (cfg.token && cfg.repo) {
+      await loadPosts();
+    } else {
+      setTimeout(openSettings, 200);
+    }
+  } catch (e) {
+    console.error('init failed:', e);
+    setTimeout(openSettings, 200);
+  }
+}
+
+init();
