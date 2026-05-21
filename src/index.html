@@ -34,13 +34,12 @@
       <button onclick="togglePreview()" id="preview-btn">◎ preview</button>
       <button onclick="saveDraft()" id="save-btn">⬡ save draft</button>
       <button class="primary" onclick="publish()" id="pub-btn">→ publish</button>
-      <button class="danger" onclick="unpublish()" id="unpub-btn" style="display:none">⊘ unpublish</button>
+      <button class="danger" onclick="unpublish()" id="unpub-btn" style="display:none">⊘ move back to draft</button>
     </div>
     <div id="frontmatter-bar">
       <label>date <input type="text" id="fm-date" placeholder="2025-05-19" oninput="markDirty()" style="width:100px" /></label>
       <label>tags <input type="text" id="fm-tags" placeholder="zola, web" oninput="markDirty()" style="width:150px" /></label>
-      <label>slug <input type="text" id="fm-slug" placeholder="my-post" oninput="markDirty(); slugEdited=true" style="width:120px" /></label>
-      <label>description <input type="text" id="fm-description" placeholder="brief summary…" oninput="markDirty()" style="width:200px" /></label>
+      <label>slug <input type="text" id="fm-slug" oninput="markDirty(); slugEdited=true" style="width:120px" /></label>
     </div>
     <div id="editor-area">
       <textarea id="md-editor" spellcheck="true" placeholder="start writing in markdown…" oninput="markDirty(); updatePreview(); updateWordCount()"></textarea>

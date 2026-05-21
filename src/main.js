@@ -204,29 +204,54 @@ window.autoSlug = function() {
   document.getElementById('fm-slug').value = slugify(title);
 };
 
-function buildFrontmatter({ title, isDraft, date, tags, slug, description }) {
+function buildFrontmatter({ title, isDraft, date, tags, slug }) {
   const d = date || todayISO();
   const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
   let fm = `+++\ntitle = "${title}"\ndate = ${d}\n`;
   if (isDraft) fm += `draft = true\n`;
-  if (description) fm += `description = "${description}"\n`;
   if (tagList.length) fm += `\n[taxonomies]\ntags = [${tagList.map(t => `"${t}"`).join(', ')}]\n`;
   fm += `+++\n\n`;
   return fm;
 }
 
 function parseFrontmatter(raw) {
-  const m = raw.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+\n?([\s\S]*)$/);
-  if (!m) return { title: '', draft: false, date: '', tags: '', description: '', body: raw };
-  const header = m[1];
-  const body = m[2].replace(/^\n/, '');
-  const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
-  const draft = /draft\s*=\s*true/.test(header);
-  const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
-  const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
-  const tagMatch = header.match(/tags\s*=\s*\[([^\]]*)\]/);
-  const tags = tagMatch ? tagMatch[1].replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
-  return { title, draft, date, tags, description, body };
+  // TOML frontmatter (+++ delimiters)
+  let m = raw.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+\n?([\s\S]*)$/);
+  if (m) {
+    const header = m[1];
+    const body = m[2].replace(/^\n/, '');
+    const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
+    const draft = /draft\s*=\s*true/.test(header);
+    const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
+    const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
+    const tagMatch = header.match(/tags\s*=\s*\[([^\]]*)\]/);
+    const tags = tagMatch ? tagMatch[1].replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
+    return { title, draft, date, tags, description, body, format: 'toml' };
+  }
+  // YAML frontmatter (--- delimiters)
+  m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (m) {
+    const header = m[1];
+    const body = m[2].replace(/^\n/, '');
+    const title = ((header.match(/^title:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+    const draft = /^draft:\s*true\s*$/m.test(header);
+    const date = (header.match(/^date:\s*(\S+)/m) || [])[1] || '';
+    const description = ((header.match(/^description:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+    // inline tags: [a, b] or block list with - items
+    const inlineTags = header.match(/^tags:\s*\[([^\]]*)\]\s*$/m);
+    let tags = '';
+    if (inlineTags) {
+      tags = inlineTags[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
+    } else {
+      const tagsBlock = header.match(/^tags:\s*\n((?:[ \t]*-[^\n]*\n?)*)/m);
+      if (tagsBlock) {
+        tags = [...tagsBlock[1].matchAll(/[ \t]*-\s*["']?(.+?)["']?\s*$/gm)]
+          .map(t => t[1].trim()).join(', ');
+      }
+    }
+    return { title, draft, date, tags, description, body, format: 'yaml' };
+  }
+  return { title: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
 }
 
 // ── GitHub API ────────────────────────────────────────────────────
@@ -306,7 +331,7 @@ function treeChildren(parentPath) {
     .filter(item => item.path.substring(0, item.path.lastIndexOf('/')) === parentPath)
     .sort((a, b) => {
       if (a.type !== b.type) return a.type === 'tree' ? -1 : 1;
-      return a.path.localeCompare(b.path);
+      return b.path.localeCompare(a.path);
     });
 }
 
@@ -325,7 +350,6 @@ function renderTreeNodes(parentPath, depth) {
   for (const item of treeChildren(parentPath)) {
     const name = item.path.split('/').pop();
     if (item.type === 'tree') {
-      if (!dirHasMatch(item.path)) continue;
       const exp = _expandedDirs.has(item.path);
       html += `<div class="tree-item tree-dir" style="padding-left:${8 + pad}px"
                     onclick="window.toggleDir('${item.path}')">
@@ -381,7 +405,6 @@ window.openTreeFile = async function(path, sha) {
     document.getElementById('fm-date').value = fm.date || todayISO();
     document.getElementById('fm-tags').value = fm.tags;
     document.getElementById('fm-slug').value = path.split('/').pop().replace(/\.md$/, '');
-    document.getElementById('fm-description').value = fm.description;
     slugEdited = true;
     document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
     setStatus(path);
@@ -408,7 +431,6 @@ window.newPost = function() {
   document.getElementById('fm-date').value = todayISO();
   document.getElementById('fm-tags').value = '';
   document.getElementById('fm-slug').value = '';
-  document.getElementById('fm-description').value = '';
   document.getElementById('unpub-btn').style.display = 'none';
   renderTree();
   setStatus('new post', 0, 0);
@@ -421,8 +443,7 @@ function getCurrentContent(isDraft) {
   const body = document.getElementById('md-editor').value;
   const date = document.getElementById('fm-date').value || todayISO();
   const tags = document.getElementById('fm-tags').value;
-  const description = document.getElementById('fm-description').value;
-  return buildFrontmatter({ title, isDraft, date, tags, description }) + body;
+  return buildFrontmatter({ title, isDraft, date, tags }) + body;
 }
 
 function getSlug() {
@@ -572,7 +593,7 @@ window.togglePreview = function() {
 
 function updatePreview() {
   if (!previewing) return;
-  const md = document.getElementById('md-editor').value;
+  const { body: md } = parseFrontmatter(document.getElementById('md-editor').value);
   // Basic Markdown renderer
   let html = md
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')

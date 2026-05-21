@@ -179,12 +179,12 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg2);
+  background: var(--bg);
   flex-shrink: 0;
 }
 #post-title-input {
   flex: 1;
-  background: transparent;
+  background: var(--bg);
   border: none;
   outline: none;
   font-size: 14px;
@@ -253,7 +253,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #fm-date { width: 100px; }
 #fm-tags { width: 160px; }
 #fm-slug { width: 130px; }
-#fm-description { width: 220px; }
 
 /* Editor area */
 #editor-area {
@@ -372,7 +371,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #toast.error { border-color: var(--danger); color: var(--danger); }
 
 /* Token validate row */
-.token-row { display: flex; gap: 6px; align-items: flex-start; }
+.token-row { display: flex; gap: 6px; align-items: stretch; }
 .token-row input { flex: 1; min-width: 0; }
 
 /* Repo combobox */
