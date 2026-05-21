@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zola Blog Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a;
+    --bg2: #222;
+    --bg3: #2a2a2a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e8e6e0;
+    --text2: #888;
+    --text3: #555;
+    --accent: #7c9e6e;
+    --accent-dim: rgba(124,158,110,0.15);
+    --amber: #c8943a;
+    --amber-dim: rgba(200,148,58,0.15);
+    --danger: #b85c5c;
+    --radius: 6px;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Menlo', monospace;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Titlebar ── */
+  #titlebar {
+    height: 36px;
+    background: var(--bg2);
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+  #titlebar-title { font-size: 12px; color: var(--text2); }
+  #titlebar-dirty { font-size: 11px; color: var(--amber); display: none; }
+  #titlebar-dirty.show { display: inline; }
+  #titlebar .spacer { flex: 1; }
+  #titlebar-status { font-size: 11px; color: var(--text3); }
+
+  /* ── Main layout ── */
+  #app {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 220px;
+    min-width: 220px;
+    border-right: 0.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg2);
+  }
+  #sidebar-top {
+    padding: 10px 10px 8px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  #sidebar-top .repo-label {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  #repo-display {
+    font-size: 11px;
+    color: var(--text2);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border);
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #repo-display:hover { border-color: var(--border2); }
+  #search-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    font-family: var(--font-ui);
+  }
+  #search-input:focus { border-color: var(--border2); }
+  #search-input::placeholder { color: var(--text3); }
+
+  #post-list { flex: 1; overflow-y: auto; padding: 4px; }
+  #post-list::-webkit-scrollbar { width: 4px; }
+  #post-list::-webkit-scrollbar-track { background: transparent; }
+  #post-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .post-item {
+    padding: 7px 9px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-bottom: 1px;
+    border: 0.5px solid transparent;
+    transition: background 0.1s;
+  }
+  .post-item:hover { background: var(--bg3); }
+  .post-item.active { background: var(--bg3); border-color: var(--border2); }
+  .post-item-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+  }
+  .post-item-meta {
+    font-size: 10px;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-draft { background: var(--amber-dim); color: var(--amber); }
+  .badge-pub { background: var(--accent-dim); color: var(--accent); }
+
+  #sidebar-footer {
+    padding: 8px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    gap: 6px;
+  }
+  #sidebar-footer button { flex: 1; }
+
+  /* ── Editor pane ── */
+  #editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  #toolbar {
+    padding: 7px 12px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg2);
+    flex-shrink: 0;
+  }
+  #post-title-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-width: 0;
+  }
+  #post-title-input::placeholder { color: var(--text3); }
+
+  .sep { width: 0.5px; height: 18px; background: var(--border2); flex-shrink: 0; }
+
+  /* Buttons */
+  button, .btn {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
+  }
+  button:hover { background: var(--bg3); color: var(--text); }
+  button.primary { border-color: var(--accent); color: var(--accent); }
+  button.primary:hover { background: var(--accent-dim); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  button.danger:hover { background: rgba(184,92,92,0.15); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Frontmatter bar */
+  #frontmatter-bar {
+    padding: 6px 12px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text3);
+    background: var(--bg2);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #frontmatter-bar label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text3);
+  }
+  #frontmatter-bar input[type=text] {
+    font-size: 11px;
+    padding: 3px 7px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    outline: none;
+    font-family: var(--font-mono);
+  }
+  #frontmatter-bar input[type=text]:focus { border-color: var(--border2); }
+  #fm-date { width: 100px; }
+  #fm-tags { width: 160px; }
+  #fm-slug { width: 130px; }
+  #fm-description { width: 220px; }
+
+  /* Editor area */
+  #editor-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  #md-editor {
+    flex: 1;
+    padding: 20px 24px;
+    font-size: 14px;
+    font-family: var(--font-mono);
+    line-height: 1.75;
+    border: none;
+    outline: none;
+    resize: none;
+    background: var(--bg);
+    color: var(--text);
+    tab-size: 2;
+  }
+  #md-editor::placeholder { color: var(--text3); }
+  #preview-pane {
+    flex: 1;
+    padding: 20px 28px;
+    overflow-y: auto;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--text);
+    display: none;
+    background: var(--bg);
+  }
+  #preview-pane::-webkit-scrollbar { width: 4px; }
+  #preview-pane::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  #preview-pane h1 { font-size: 1.7em; font-weight: 600; margin: 1.2em 0 0.4em; }
+  #preview-pane h2 { font-size: 1.3em; font-weight: 600; margin: 1em 0 0.3em; }
+  #preview-pane h3 { font-size: 1.1em; font-weight: 600; margin: 0.9em 0 0.3em; }
+  #preview-pane p { margin-bottom: 0.8em; }
+  #preview-pane a { color: var(--accent); }
+  #preview-pane code { font-family: var(--font-mono); font-size: 12px; background: var(--bg3); padding: 1px 5px; border-radius: 3px; }
+  #preview-pane pre { background: var(--bg3); padding: 14px 16px; border-radius: var(--radius); margin-bottom: 0.8em; overflow-x: auto; }
+  #preview-pane pre code { background: none; padding: 0; }
+  #preview-pane blockquote { border-left: 3px solid var(--border2); padding-left: 14px; color: var(--text2); margin: 0.5em 0 0.8em; }
+  #preview-pane hr { border: none; border-top: 0.5px solid var(--border2); margin: 1.5em 0; }
+
+  /* Statusbar */
+  #statusbar {
+    padding: 4px 12px;
+    border-top: 0.5px solid var(--border);
+    font-size: 10px;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg2);
+    flex-shrink: 0;
+  }
+  #statusbar .spacer { flex: 1; }
+
+  /* Modal */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  #modal-overlay.show { display: flex; }
+  #modal {
+    background: var(--bg2);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px;
+    padding: 24px;
+    width: 420px;
+    max-width: 90vw;
+  }
+  #modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  #modal label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; margin-top: 14px; }
+  #modal label:first-of-type { margin-top: 0; }
+  #modal input {
+    width: 100%;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text);
+    outline: none;
+    font-family: var(--font-mono);
+  }
+  #modal input:focus { border-color: var(--accent); }
+  #modal .hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }
+  #modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg3);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 7px 16px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 200;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: var(--danger); color: #e08080; }
+
+  /* Splitter */
+  #splitter {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    flex-shrink: 0;
+    transition: background 0.1s;
+  }
+  #splitter:hover, #splitter.dragging { background: var(--border2); }
+</style>
+</head>
+<body>
+
+<div id="titlebar">
+  <span id="titlebar-title">zola blog editor</span>
+  <span id="titlebar-dirty" class="">●</span>
+  <span class="spacer"></span>
+  <span id="titlebar-status"></span>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-top">
+      <div class="repo-label">
+        ⌥ repository
+      </div>
+      <div id="repo-display" onclick="openSettings()" title="Click to change settings">
+        <span id="repo-display-text">not connected</span>
+        <span style="color:var(--text3);font-size:10px;">⚙</span>
+      </div>
+      <input type="text" id="search-input" placeholder="filter posts…" oninput="filterPosts(this.value)" />
+    </div>
+    <div id="post-list"></div>
+    <div id="sidebar-footer">
+      <button onclick="newPost()" title="New post (Ctrl+N)">+ new</button>
+      <button onclick="loadPosts()" title="Refresh post list">↺ refresh</button>
+    </div>
+  </div>
+
+  <div id="editor-pane">
+    <div id="toolbar">
+      <input type="text" id="post-title-input" placeholder="post title…" oninput="markDirty(); autoSlug()" />
+      <div class="sep"></div>
+      <button onclick="togglePreview()" id="preview-btn">◎ preview</button>
+      <button onclick="saveDraft()" id="save-btn">⬡ save draft</button>
+      <button class="primary" onclick="publish()" id="pub-btn">→ publish</button>
+      <button class="danger" onclick="unpublish()" id="unpub-btn" style="display:none">⊘ unpublish</button>
+    </div>
+    <div id="frontmatter-bar">
+      <label>date <input type="text" id="fm-date" placeholder="2025-05-19" oninput="markDirty()" style="width:100px" /></label>
+      <label>tags <input type="text" id="fm-tags" placeholder="zola, web" oninput="markDirty()" style="width:150px" /></label>
+      <label>slug <input type="text" id="fm-slug" placeholder="my-post" oninput="markDirty(); slugEdited=true" style="width:120px" /></label>
+      <label>description <input type="text" id="fm-description" placeholder="brief summary…" oninput="markDirty()" style="width:200px" /></label>
+    </div>
+    <div id="editor-area">
+      <textarea id="md-editor" spellcheck="true" placeholder="start writing in markdown…" oninput="markDirty(); updatePreview(); updateWordCount()"></textarea>
+      <div id="splitter"></div>
+      <div id="preview-pane"></div>
+    </div>
+    <div id="statusbar">
+      <span id="status-path">no post open</span>
+      <span class="spacer"></span>
+      <span id="status-words">0 words</span>
+      <span id="status-chars">0 chars</span>
+    </div>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <h3 id="modal-title">GitHub settings</h3>
+    <label>Personal access token (repo scope)</label>
+    <input type="password" id="cfg-token" placeholder="ghp_…" autocomplete="off" />
+    <p class="hint">Create one at github.com/settings/tokens → Classic → check <em>repo</em>. Stored securely in your OS keychain via Tauri.</p>
+    <label>Repository</label>
+    <input type="text" id="cfg-repo" placeholder="philwilson/my-blog" />
+    <label>Branch</label>
+    <input type="text" id="cfg-branch" placeholder="main" />
+    <label>Posts path</label>
+    <input type="text" id="cfg-path" placeholder="content/blog" />
+    <div id="modal-actions">
+      <button onclick="closeModal()">cancel</button>
+      <button class="primary" id="modal-ok-btn" onclick="modalOk()">connect →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+// ── Tauri integration ──────────────────────────────────────────────
+// tauri-plugin-store lets us persist config across sessions.
+// Falls back to sessionStorage when running in a plain browser.
+
+let _storeRid = null;
+
+async function initStore() {
+  if (!window.__TAURI__) return false;
+  try {
+    _storeRid = await window.__TAURI__.core.invoke('plugin:store|load', {
+      path: 'config.json',
+      autoSave: true
+    });
+    return true;
+  } catch (e) {
+    console.warn('Store init failed:', e);
+    return false;
+  }
+}
+
+async function cfgGet(key) {
+  if (_storeRid !== null) {
+    try {
+      return await window.__TAURI__.core.invoke('plugin:store|get', { rid: _storeRid, key });
+    } catch { return null; }
+  }
+  const v = sessionStorage.getItem(key);
+  return v ? JSON.parse(v) : null;
+}
+
+async function cfgSet(key, value) {
+  if (_storeRid !== null) {
+    try {
+      await window.__TAURI__.core.invoke('plugin:store|set', { rid: _storeRid, key, value });
+    } catch (e) { console.warn('Store set failed:', e); }
+    return;
+  }
+  sessionStorage.setItem(key, JSON.stringify(value));
+}
+
+// ── State ──────────────────────────────────────────────────────────
+let cfg = { token: '', repo: '', branch: 'main', postsPath: 'content/blog' };
+let posts = [];
+let currentPost = null;
+let dirty = false;
+let previewing = false;
+let slugEdited = false;
+
+window.slugEdited = false; // expose for oninput handler
+
+// ── UI helpers ────────────────────────────────────────────────────
+function toast(msg, type = '', dur = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type === 'error' ? 'show error' : 'show';
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.className = '', dur);
+}
+
+function setStatus(path, words, chars) {
+  if (path !== undefined) document.getElementById('status-path').textContent = path;
+  if (words !== undefined) document.getElementById('status-words').textContent = words + ' words';
+  if (chars !== undefined) document.getElementById('status-chars').textContent = chars + ' chars';
+}
+
+function markDirty() {
+  dirty = true;
+  document.getElementById('titlebar-dirty').classList.add('show');
+}
+
+function markClean() {
+  dirty = false;
+  document.getElementById('titlebar-dirty').classList.remove('show');
+}
+
+function updateWordCount() {
+  const text = document.getElementById('md-editor').value;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const chars = text.length;
+  setStatus(undefined, words, chars);
+}
+
+window.markDirty = markDirty;
+window.updatePreview = updatePreview;
+window.updateWordCount = updateWordCount;
+
+// ── Frontmatter helpers ───────────────────────────────────────────
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function slugify(str) {
+  return str.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[\s]+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+window.autoSlug = function() {
+  if (slugEdited) return;
+  const title = document.getElementById('post-title-input').value;
+  document.getElementById('fm-slug').value = slugify(title);
+};
+
+function buildFrontmatter({ title, isDraft, date, tags, slug, description }) {
+  const d = date || todayISO();
+  const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+  let fm = `+++\ntitle = "${title}"\ndate = ${d}\n`;
+  if (isDraft) fm += `draft = true\n`;
+  if (description) fm += `description = "${description}"\n`;
+  if (tagList.length) fm += `\n[taxonomies]\ntags = [${tagList.map(t => `"${t}"`).join(', ')}]\n`;
+  fm += `+++\n\n`;
+  return fm;
+}
+
+function parseFrontmatter(raw) {
+  const m = raw.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+\n?([\s\S]*)$/);
+  if (!m) return { title: '', draft: false, date: '', tags: '', description: '', body: raw };
+  const header = m[1];
+  const body = m[2].replace(/^\n/, '');
+  const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
+  const draft = /draft\s*=\s*true/.test(header);
+  const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
+  const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
+  const tagMatch = header.match(/tags\s*=\s*\[([^\]]*)\]/);
+  const tags = tagMatch ? tagMatch[1].replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
+  return { title, draft, date, tags, description, body };
+}
+
+// ── GitHub API ────────────────────────────────────────────────────
+async function ghFetch(path, opts = {}) {
+  if (!cfg.token || !cfg.repo) { openSettings(); throw new Error('not configured'); }
+  const url = `https://api.github.com/repos/${cfg.repo}/${path}`;
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function commitFile(path, content, sha, message) {
+  const encoded = btoa(unescape(encodeURIComponent(content)));
+  const body = { message, content: encoded, branch: cfg.branch };
+  if (sha) body.sha = sha;
+  const result = await ghFetch(`contents/${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return result;
+}
+
+// ── Post list ─────────────────────────────────────────────────────
+window.loadPosts = async function() {
+  if (!cfg.token || !cfg.repo) { openSettings(); return; }
+  setStatus('loading…');
+  document.getElementById('titlebar-status').textContent = 'loading…';
+  try {
+    const items = await ghFetch(`contents/${cfg.postsPath}?ref=${cfg.branch}`);
+    const mdFiles = items.filter(i => i.name.endsWith('.md') && i.type === 'file');
+
+    // Load frontmatter for each file in parallel
+    posts = await Promise.all(mdFiles.map(async item => {
+      try {
+        const data = await ghFetch(`contents/${item.path}?ref=${cfg.branch}`);
+        const raw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+        const fm = parseFrontmatter(raw);
+        return {
+          name: item.name,
+          path: item.path,
+          sha: data.sha,
+          title: fm.title || item.name.replace(/\.md$/, ''),
+          draft: fm.draft,
+          date: fm.date,
+          raw,
+        };
+      } catch {
+        return {
+          name: item.name,
+          path: item.path,
+          sha: item.sha,
+          title: item.name.replace(/\.md$/, ''),
+          draft: false,
+          date: '',
+          raw: null,
+        };
+      }
+    }));
+
+    posts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    renderList();
+    const label = `${posts.length} post${posts.length !== 1 ? 's' : ''}`;
+    document.getElementById('titlebar-status').textContent = label;
+    setStatus(currentPost ? currentPost.path : 'select a post', undefined, undefined);
+  } catch (e) {
+    toast('could not load posts: ' + e.message, 'error');
+    document.getElementById('titlebar-status').textContent = 'error';
+    setStatus('not connected');
+  }
+};
+
+function renderList(filter = '') {
+  const el = document.getElementById('post-list');
+  el.innerHTML = '';
+  const lower = filter.toLowerCase();
+  const visible = posts.filter(p => !filter || p.title.toLowerCase().includes(lower));
+  visible.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'post-item' + (currentPost && currentPost.path === p.path ? ' active' : '');
+    div.innerHTML = `
+      <div class="post-item-title">${escapeHtml(p.title)}</div>
+      <div class="post-item-meta">
+        <span>${p.date || '—'}</span>
+        <span class="badge ${p.draft ? 'badge-draft' : 'badge-pub'}">${p.draft ? 'draft' : 'live'}</span>
+      </div>`;
+    div.onclick = () => openPost(p, div);
+    el.appendChild(div);
+  });
+}
+
+window.filterPosts = function(val) { renderList(val); };
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Open post ─────────────────────────────────────────────────────
+async function openPost(p, itemEl) {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+
+  currentPost = p;
+  markClean();
+
+  document.querySelectorAll('.post-item').forEach(el => el.classList.remove('active'));
+  if (itemEl) itemEl.classList.add('active');
+
+  let raw = p.raw;
+  if (!raw) {
+    try {
+      const data = await ghFetch(`contents/${p.path}?ref=${cfg.branch}`);
+      raw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+      p.raw = raw;
+      p.sha = data.sha;
+    } catch (e) {
+      toast('could not load post: ' + e.message, 'error');
+      return;
+    }
+  }
+
+  const fm = parseFrontmatter(raw);
+  document.getElementById('post-title-input').value = fm.title;
+  document.getElementById('md-editor').value = fm.body;
+  document.getElementById('fm-date').value = fm.date || todayISO();
+  document.getElementById('fm-tags').value = fm.tags;
+  document.getElementById('fm-slug').value = p.name.replace(/\.md$/, '');
+  document.getElementById('fm-description').value = fm.description;
+  slugEdited = true; // don't auto-overwrite slug when editing existing post
+
+  // Show/hide unpublish button
+  document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
+
+  setStatus(p.path, undefined, undefined);
+  updateWordCount();
+  updatePreview();
+}
+
+// ── New post ──────────────────────────────────────────────────────
+window.newPost = function() {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  currentPost = null;
+  markClean();
+  slugEdited = false;
+  document.getElementById('post-title-input').value = '';
+  document.getElementById('md-editor').value = '';
+  document.getElementById('fm-date').value = todayISO();
+  document.getElementById('fm-tags').value = '';
+  document.getElementById('fm-slug').value = '';
+  document.getElementById('fm-description').value = '';
+  document.getElementById('unpub-btn').style.display = 'none';
+  document.querySelectorAll('.post-item').forEach(el => el.classList.remove('active'));
+  setStatus('new post', 0, 0);
+  document.getElementById('post-title-input').focus();
+};
+
+// ── Get current content ───────────────────────────────────────────
+function getCurrentContent(isDraft) {
+  const title = document.getElementById('post-title-input').value || 'Untitled';
+  const body = document.getElementById('md-editor').value;
+  const date = document.getElementById('fm-date').value || todayISO();
+  const tags = document.getElementById('fm-tags').value;
+  const description = document.getElementById('fm-description').value;
+  return buildFrontmatter({ title, isDraft, date, tags, description }) + body;
+}
+
+function getSlug() {
+  const s = document.getElementById('fm-slug').value.trim();
+  if (s) return s;
+  return slugify(document.getElementById('post-title-input').value || 'untitled');
+}
+
+async function getExistingSha(path) {
+  try {
+    const data = await ghFetch(`contents/${path}?ref=${cfg.branch}`);
+    return data.sha;
+  } catch {
+    return null;
+  }
+}
+
+// ── Save draft ────────────────────────────────────────────────────
+window.saveDraft = async function() {
+  if (!cfg.token) { openSettings(); return; }
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(true);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  document.getElementById('save-btn').disabled = true;
+  setStatus('saving…');
+  try {
+    const sha = currentPost && currentPost.path === path
+      ? currentPost.sha
+      : await getExistingSha(path);
+
+    const result = await commitFile(path, content, sha, `draft: ${title}`);
+    markClean();
+    toast('draft saved');
+
+    // Update local state
+    const newSha = result.content.sha;
+    if (currentPost && currentPost.path === path) {
+      currentPost.sha = newSha;
+      currentPost.raw = content;
+      currentPost.draft = true;
+      currentPost.title = title;
+    } else {
+      await loadPosts();
+      currentPost = posts.find(p => p.path === path) || null;
+    }
+    document.getElementById('unpub-btn').style.display = 'none';
+    renderList(document.getElementById('search-input').value);
+    setStatus(path);
+  } catch (e) {
+    toast('save failed: ' + e.message, 'error');
+    setStatus('save failed');
+  } finally {
+    document.getElementById('save-btn').disabled = false;
+  }
+};
+
+// ── Publish ───────────────────────────────────────────────────────
+window.publish = async function() {
+  if (!cfg.token) { openSettings(); return; }
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(false);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  document.getElementById('pub-btn').disabled = true;
+  setStatus('publishing…');
+  try {
+    const sha = currentPost && currentPost.path === path
+      ? currentPost.sha
+      : await getExistingSha(path);
+
+    const result = await commitFile(path, content, sha, `publish: ${title}`);
+    markClean();
+    toast('published! 🎉');
+
+    const newSha = result.content.sha;
+    if (currentPost && currentPost.path === path) {
+      currentPost.sha = newSha;
+      currentPost.raw = content;
+      currentPost.draft = false;
+      currentPost.title = title;
+    } else {
+      await loadPosts();
+      currentPost = posts.find(p => p.path === path) || null;
+    }
+    document.getElementById('unpub-btn').style.display = 'inline-flex';
+    renderList(document.getElementById('search-input').value);
+    setStatus(path);
+  } catch (e) {
+    toast('publish failed: ' + e.message, 'error');
+    setStatus('publish failed');
+  } finally {
+    document.getElementById('pub-btn').disabled = false;
+  }
+};
+
+// ── Unpublish (re-save as draft) ──────────────────────────────────
+window.unpublish = async function() {
+  if (!confirm('Move this post back to draft? It will still exist in your repo but Zola won\'t build it.')) return;
+  const slug = getSlug();
+  const path = `${cfg.postsPath}/${slug}.md`;
+  const content = getCurrentContent(true);
+  const title = document.getElementById('post-title-input').value || slug;
+
+  try {
+    const sha = currentPost && currentPost.path === path ? currentPost.sha : await getExistingSha(path);
+    const result = await commitFile(path, content, sha, `draft: ${title}`);
+    markClean();
+    toast('moved to draft');
+    if (currentPost) { currentPost.sha = result.content.sha; currentPost.draft = true; }
+    document.getElementById('unpub-btn').style.display = 'none';
+    renderList(document.getElementById('search-input').value);
+  } catch (e) {
+    toast('failed: ' + e.message, 'error');
+  }
+};
+
+// ── Preview ───────────────────────────────────────────────────────
+window.togglePreview = function() {
+  previewing = !previewing;
+  const btn = document.getElementById('preview-btn');
+  const ed = document.getElementById('md-editor');
+  const pv = document.getElementById('preview-pane');
+  const sp = document.getElementById('splitter');
+  if (previewing) {
+    updatePreview();
+    ed.style.flex = '1';
+    pv.style.display = 'block';
+    pv.style.flex = '1';
+    sp.style.display = 'block';
+    btn.textContent = '✕ preview';
+  } else {
+    pv.style.display = 'none';
+    sp.style.display = 'none';
+    btn.textContent = '◎ preview';
+  }
+};
+
+function updatePreview() {
+  if (!previewing) return;
+  const md = document.getElementById('md-editor').value;
+  // Basic Markdown renderer
+  let html = md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code class="lang-${lang}">${code}</code></pre>`)
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/^#{6} (.+)$/gm, '<h6>$1</h6>')
+    .replace(/^#{5} (.+)$/gm, '<h5>$1</h5>')
+    .replace(/^#{4} (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^---$/gm, '<hr/>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
+    .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
+    .replace(/<p><\/p>/g, '');
+  document.getElementById('preview-pane').innerHTML = html;
+}
+
+window.updatePreview = updatePreview;
+
+// ── Settings modal ────────────────────────────────────────────────
+window.openSettings = function() {
+  document.getElementById('cfg-token').value = cfg.token;
+  document.getElementById('cfg-repo').value = cfg.repo;
+  document.getElementById('cfg-branch').value = cfg.branch;
+  document.getElementById('cfg-path').value = cfg.postsPath;
+  document.getElementById('modal-overlay').classList.add('show');
+  setTimeout(() => document.getElementById(cfg.token ? 'cfg-repo' : 'cfg-token').focus(), 50);
+};
+
+window.closeModal = function() {
+  document.getElementById('modal-overlay').classList.remove('show');
+};
+
+window.modalOk = async function() {
+  const token = document.getElementById('cfg-token').value.trim();
+  const repo = document.getElementById('cfg-repo').value.trim();
+  const branch = document.getElementById('cfg-branch').value.trim() || 'main';
+  const postsPath = document.getElementById('cfg-path').value.trim() || 'content/blog';
+
+  if (!token || !repo) { toast('token and repo are required', 'error'); return; }
+
+  cfg = { token, repo, branch, postsPath };
+
+  await cfgSet('repo', repo);
+  await cfgSet('branch', branch);
+  await cfgSet('postsPath', postsPath);
+  // Token stored separately (will be in OS keychain via Tauri store)
+  await cfgSet('token', token);
+
+  document.getElementById('repo-display-text').textContent = `${repo} (${branch})`;
+  closeModal();
+  await loadPosts();
+};
+
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); saveDraft(); }
+    if (e.key === 'Enter') { e.preventDefault(); publish(); }
+    if (e.key === 'n') { e.preventDefault(); newPost(); }
+    if (e.key === 'p') { e.preventDefault(); togglePreview(); }
+    if (e.key === ',') { e.preventDefault(); openSettings(); }
+  }
+});
+
+// ── Splitter drag ─────────────────────────────────────────────────
+const splitter = document.getElementById('splitter');
+let dragging = false;
+let startX, startEditorWidth;
+splitter.addEventListener('mousedown', e => {
+  dragging = true;
+  startX = e.clientX;
+  startEditorWidth = document.getElementById('md-editor').offsetWidth;
+  splitter.classList.add('dragging');
+  e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - startX;
+  const ed = document.getElementById('md-editor');
+  const pv = document.getElementById('preview-pane');
+  const total = ed.offsetWidth + pv.offsetWidth;
+  const newEdWidth = Math.max(200, Math.min(total - 200, startEditorWidth + dx));
+  ed.style.flex = 'none';
+  ed.style.width = newEdWidth + 'px';
+  pv.style.flex = '1';
+});
+document.addEventListener('mouseup', () => {
+  dragging = false;
+  splitter.classList.remove('dragging');
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+async function init() {
+  await initStore();
+
+  const savedToken = await cfgGet('token');
+  const savedRepo = await cfgGet('repo');
+  const savedBranch = await cfgGet('branch');
+  const savedPath = await cfgGet('postsPath');
+
+  if (savedToken) cfg.token = savedToken;
+  if (savedRepo) cfg.repo = savedRepo;
+  if (savedBranch) cfg.branch = savedBranch;
+  if (savedPath) cfg.postsPath = savedPath;
+
+  if (cfg.repo) {
+    document.getElementById('repo-display-text').textContent = `${cfg.repo} (${cfg.branch})`;
+  }
+
+  if (cfg.token && cfg.repo) {
+    await loadPosts();
+  } else {
+    setTimeout(openSettings, 200);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
