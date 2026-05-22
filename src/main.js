@@ -314,11 +314,8 @@ window.loadPosts = async function() {
         relPath: item.path.slice(prefix.length + 1) || ''
       }));
 
-    // Expand all subdirectories by default so no posts are hidden
+    // All data is loaded; start with all folders collapsed
     _expandedDirs = new Set([prefix]);
-    _treeItems
-      .filter(i => i.type === 'tree')
-      .forEach(i => _expandedDirs.add(i.path));
 
     renderTree();
     setStatus(currentPost ? currentPost.path : 'select a file');
