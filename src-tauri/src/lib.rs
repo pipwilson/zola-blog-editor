@@ -1,3 +1,4 @@
+use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 #[tauri::command]
@@ -29,6 +30,24 @@ fn load_config(app: tauri::AppHandle) -> serde_json::Value {
 }
 
 #[tauri::command]
+fn save_local(app: tauri::AppHandle, filename: String, content: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("local-drafts");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(&filename), content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn load_local(app: tauri::AppHandle, filename: String) -> Option<String> {
+    let path = app.path().app_data_dir().ok()?
+        .join("local-drafts")
+        .join(filename);
+    std::fs::read_to_string(path).ok()
+}
+
+#[tauri::command]
 fn save_config(
     app: tauri::AppHandle,
     token: String,
@@ -49,7 +68,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![is_tauri, load_config, save_config])
+        .invoke_handler(tauri::generate_handler![is_tauri, load_config, save_config, save_local, load_local])
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

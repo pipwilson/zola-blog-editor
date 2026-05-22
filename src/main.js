@@ -148,6 +148,8 @@ let currentPost = null;
 let dirty = false;
 let previewing = false;
 let slugEdited = false;
+let _ctxTarget = null;        // { path, type } for context menu
+let _newPostFolder = '';      // absolute path of folder for next new-post-in-folder
 
 window.slugEdited = false; // expose for oninput handler
 
@@ -224,8 +226,11 @@ function parseFrontmatter(raw) {
     const draft = /draft\s*=\s*true/.test(header);
     const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
     const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
-    const tagMatch = header.match(/tags\s*=\s*\[([^\]]*)\]/);
-    const tags = tagMatch ? tagMatch[1].replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
+    // Tags live under [taxonomies] in Zola; also handle top-level tags = [...]
+    const taxSection = header.match(/\[taxonomies\]([\s\S]*?)(?=\n\[|\s*$)/);
+    const tagSource = taxSection ? taxSection[1] : header;
+    const tagMatch = tagSource.match(/\btags\s*=\s*\[([^\]]*)\]/);
+    const tags = tagMatch ? tagMatch[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
     return { title, draft, date, tags, description, body, format: 'toml' };
   }
   // YAML frontmatter (--- delimiters)
@@ -237,18 +242,18 @@ function parseFrontmatter(raw) {
     const draft = /^draft:\s*true\s*$/m.test(header);
     const date = (header.match(/^date:\s*(\S+)/m) || [])[1] || '';
     const description = ((header.match(/^description:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
-    // inline tags: [a, b] or block list with - items
-    const inlineTags = header.match(/^tags:\s*\[([^\]]*)\]\s*$/m);
-    let tags = '';
-    if (inlineTags) {
-      tags = inlineTags[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
-    } else {
-      const tagsBlock = header.match(/^tags:\s*\n((?:[ \t]*-[^\n]*\n?)*)/m);
-      if (tagsBlock) {
-        tags = [...tagsBlock[1].matchAll(/[ \t]*-\s*["']?(.+?)["']?\s*$/gm)]
-          .map(t => t[1].trim()).join(', ');
-      }
+    // Tags: look under taxonomies.tags first (Zola convention), then top-level tags
+    // Matches both inline [a, b] and block list (- item) forms in either location
+    function extractYamlTags(source) {
+      const inline = source.match(/^[ \t]*tags:\s*\[([^\]]*)\]\s*$/m);
+      if (inline) return inline[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
+      const block = source.match(/^[ \t]*tags:\s*\n((?:[ \t]*-[^\n]*\n?)*)/m);
+      if (block) return [...block[1].matchAll(/[ \t]*-\s*["']?(.+?)["']?\s*$/gm)].map(t => t[1].trim()).join(', ');
+      return '';
     }
+    const taxSection = header.match(/^taxonomies:\s*\n((?:[ \t]+\S[^\n]*\n?)*)/m);
+    let tags = taxSection ? extractYamlTags(taxSection[1]) : '';
+    if (!tags) tags = extractYamlTags(header);
     return { title, draft, date, tags, description, body, format: 'yaml' };
   }
   return { title: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
@@ -297,7 +302,11 @@ window.loadPosts = async function() {
 
     const prefix = cfg.postsPath.replace(/\/$/, '');
     _treeItems = treeData.tree
-      .filter(item => item.path.startsWith(prefix + '/') || item.path === prefix)
+      .filter(item => {
+        if (!item.path.startsWith(prefix + '/') && item.path !== prefix) return false;
+        // keep directories and .md files only
+        return item.type === 'tree' || item.path.endsWith('.md');
+      })
       .map(item => ({
         path: item.path,
         type: item.type,   // 'blob' | 'tree'
@@ -305,10 +314,10 @@ window.loadPosts = async function() {
         relPath: item.path.slice(prefix.length + 1) || ''
       }));
 
-    // Expand root + immediate subdirectories by default
+    // Expand all subdirectories by default so no posts are hidden
     _expandedDirs = new Set([prefix]);
     _treeItems
-      .filter(i => i.type === 'tree' && !i.relPath.includes('/'))
+      .filter(i => i.type === 'tree')
       .forEach(i => _expandedDirs.add(i.path));
 
     renderTree();
@@ -352,7 +361,8 @@ function renderTreeNodes(parentPath, depth) {
     if (item.type === 'tree') {
       const exp = _expandedDirs.has(item.path);
       html += `<div class="tree-item tree-dir" style="padding-left:${8 + pad}px"
-                    onclick="window.toggleDir('${item.path}')">
+                    onclick="window.toggleDir('${item.path}')"
+                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,'${item.path}','tree')">
         <span class="tree-arrow">${exp ? '▾' : '▸'}</span>
         <span class="tree-name">${escapeHtml(name)}</span>
       </div>`;
@@ -361,10 +371,11 @@ function renderTreeNodes(parentPath, depth) {
       if (_searchFilter && !name.toLowerCase().includes(_searchFilter)) continue;
       const active = currentPost && currentPost.path === item.path;
       const meta = _fileMetaCache.get(item.path);
-      const label = meta ? (meta.title || name.replace(/\.md$/, '')) : name.replace(/\.md$/, '');
+      const label = name.replace(/\.md$/, '');
       html += `<div class="tree-item tree-file${active ? ' active' : ''}"
                     style="padding-left:${22 + pad}px"
-                    onclick="window.openTreeFile('${item.path}', '${item.sha}')">
+                    onclick="window.openTreeFile('${item.path}', '${item.sha}')"
+                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,'${item.path}','blob')">
         <span class="tree-name">${escapeHtml(label)}</span>
         ${meta ? `<span class="badge ${meta.draft ? 'badge-draft' : 'badge-pub'}">${meta.draft ? 'draft' : 'live'}</span>` : ''}
       </div>`;
@@ -384,6 +395,72 @@ window.toggleDir = function(path) {
   renderTree();
 };
 
+// ── Context menu ──────────────────────────────────────────────────
+window.showCtxMenu = function(e, path, type) {
+  e.preventDefault();
+  _ctxTarget = { path, type };
+  const menu = document.getElementById('ctx-menu');
+  document.getElementById('ctx-new-post').style.display = type === 'tree' ? '' : 'none';
+  document.getElementById('ctx-rename').style.display   = type === 'blob' ? '' : 'none';
+  // Clamp to viewport
+  menu.style.left = '-9999px';
+  menu.style.top  = '-9999px';
+  menu.classList.add('show');
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.min(e.clientX, window.innerWidth  - mw - 4) + 'px';
+  menu.style.top  = Math.min(e.clientY, window.innerHeight - mh - 4) + 'px';
+};
+
+function hideCtxMenu() {
+  document.getElementById('ctx-menu').classList.remove('show');
+  _ctxTarget = null;
+}
+
+document.addEventListener('click',       () => hideCtxMenu());
+document.addEventListener('contextmenu', () => hideCtxMenu());
+
+window.ctxNewPost = function() {
+  if (!_ctxTarget) return;
+  _newPostFolder = _ctxTarget.path;
+  _expandedDirs.add(_ctxTarget.path);
+  hideCtxMenu();
+  window.newPost();
+};
+
+window.ctxRename = async function() {
+  if (!_ctxTarget || _ctxTarget.type !== 'blob') return;
+  const oldPath = _ctxTarget.path;
+  hideCtxMenu();
+  const oldName = oldPath.split('/').pop().replace(/\.md$/, '');
+  const input = prompt('Rename to:', oldName);
+  if (!input || input.trim() === oldName) return;
+  const newSlug = slugify(input.trim()) || input.trim().toLowerCase().replace(/\s+/g, '-');
+  const dir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+  const newPath = dir + '/' + newSlug + '.md';
+  setStatus('renaming…');
+  try {
+    const data = await ghFetch(`contents/${oldPath}?ref=${cfg.branch}`);
+    const rawContent = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+    await commitFile(newPath, rawContent, null, `rename: ${oldName} → ${newSlug}`);
+    await ghFetch(`contents/${oldPath}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `rename: ${oldName} → ${newSlug}`, sha: data.sha, branch: cfg.branch }),
+    });
+    toast('renamed');
+    if (currentPost && currentPost.path === oldPath) {
+      currentPost.path = newPath;
+      currentPost.name = newSlug + '.md';
+      document.getElementById('fm-slug').value = newSlug;
+      setStatus(newPath);
+    }
+    await loadPosts();
+  } catch (e) {
+    toast('rename failed: ' + e.message, 'error');
+    setStatus('rename failed');
+  }
+};
+
 window.filterPosts = function(val) {
   _searchFilter = val.toLowerCase();
   // Expand everything while searching so results are visible
@@ -395,7 +472,20 @@ window.openTreeFile = async function(path, sha) {
   if (dirty && !confirm('Discard unsaved changes?')) return;
   try {
     const data = await ghFetch(`contents/${path}?ref=${cfg.branch}`);
-    const raw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+    const remoteRaw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+
+    // Prefer local save if one exists and differs from remote
+    let raw = remoteRaw;
+    if (window.__TAURI_INTERNALS__) {
+      const filename = path.split('/').pop();
+      const local = await tauriInvoke('load_local', { filename }).catch(() => null);
+      if (local && local !== remoteRaw) {
+        if (confirm(`A locally saved version of "${filename}" exists. Use local version?`)) {
+          raw = local;
+        }
+      }
+    }
+
     const fm = parseFrontmatter(raw);
     currentPost = { name: path.split('/').pop(), path, sha: data.sha, raw, draft: fm.draft, title: fm.title, date: fm.date };
     _fileMetaCache.set(path, { title: fm.title, draft: fm.draft, date: fm.date });
@@ -461,11 +551,38 @@ async function getExistingSha(path) {
   }
 }
 
+// ── Save locally (no GitHub commit) ──────────────────────────────
+window.saveLocal = async function() {
+  const slug = getSlug() || 'untitled';
+  const filename = slug + '.md';
+  const isDraft = currentPost ? currentPost.draft : true;
+  const content = getCurrentContent(isDraft);
+  if (window.__TAURI_INTERNALS__) {
+    try {
+      await tauriInvoke('save_local', { filename, content });
+      markClean();
+      toast('saved locally');
+      setStatus(currentPost ? currentPost.path : filename + ' (local, not on GitHub)');
+    } catch (e) {
+      toast('local save failed: ' + e.message, 'error');
+    }
+  } else {
+    try {
+      localStorage.setItem('local-draft:' + filename, content);
+      markClean();
+      toast('saved locally');
+    } catch (e) {
+      toast('local save failed', 'error');
+    }
+  }
+};
+
 // ── Save draft ────────────────────────────────────────────────────
 window.saveDraft = async function() {
   if (!cfg.token) { openSettings(); return; }
   const slug = getSlug();
-  const path = `${cfg.postsPath}/${slug}.md`;
+  const subdir = (!currentPost && _newPostFolder) ? _newPostFolder.slice(cfg.postsPath.replace(/\/$/, '').length + 1) + '/' : '';
+  const path = currentPost ? currentPost.path : `${cfg.postsPath}/${subdir}${slug}.md`;
   const content = getCurrentContent(true);
   const title = document.getElementById('post-title-input').value || slug;
 
@@ -491,6 +608,7 @@ window.saveDraft = async function() {
     } else {
       await loadPosts();
       currentPost = { name: path.split('/').pop(), path, sha: newSha, raw: content, draft: true, title };
+      _newPostFolder = '';
     }
     document.getElementById('unpub-btn').style.display = 'none';
     renderTree();
@@ -507,7 +625,8 @@ window.saveDraft = async function() {
 window.publish = async function() {
   if (!cfg.token) { openSettings(); return; }
   const slug = getSlug();
-  const path = `${cfg.postsPath}/${slug}.md`;
+  const subdir = (!currentPost && _newPostFolder) ? _newPostFolder.slice(cfg.postsPath.replace(/\/$/, '').length + 1) + '/' : '';
+  const path = currentPost ? currentPost.path : `${cfg.postsPath}/${subdir}${slug}.md`;
   const content = getCurrentContent(false);
   const title = document.getElementById('post-title-input').value || slug;
 
@@ -532,6 +651,7 @@ window.publish = async function() {
     } else {
       await loadPosts();
       currentPost = { name: path.split('/').pop(), path, sha: newSha, raw: content, draft: false, title };
+      _newPostFolder = '';
     }
     document.getElementById('unpub-btn').style.display = 'inline-flex';
     renderTree();

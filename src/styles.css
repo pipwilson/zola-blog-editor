@@ -252,7 +252,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #frontmatter-bar input[type=text]:focus { border-color: var(--border2); }
 #fm-date { width: 100px; }
 #fm-tags { width: 160px; }
-#fm-slug { width: 130px; }
+#fm-slug { width: 240px; }
 
 /* Editor area */
 #editor-area {
@@ -348,6 +348,28 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #modal input:focus { border-color: var(--accent); }
 #modal .hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }
 #modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
+/* Context menu */
+#ctx-menu {
+  position: fixed;
+  display: none;
+  z-index: 300;
+  background: var(--bg2);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  min-width: 158px;
+  padding: 3px 0;
+}
+#ctx-menu.show { display: block; }
+.ctx-item {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ctx-item:hover { background: var(--bg3); color: var(--text); }
 
 /* Toast */
 #toast {
