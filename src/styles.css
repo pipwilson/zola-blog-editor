@@ -20,6 +20,7 @@
   --radius: 6px;
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Menlo', monospace;
+  --mh-code: #a0402a;
 }
 
 html[data-theme="dark"] {
@@ -38,6 +39,7 @@ html[data-theme="dark"] {
   --danger: #b85c5c;
   --danger-dim: rgba(184,92,92,0.15);
   --modal-overlay-bg: rgba(0,0,0,0.6);
+  --mh-code: #c97a50;
 }
 
 body {
@@ -260,8 +262,41 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   display: flex;
   overflow: hidden;
 }
-#md-editor {
+#md-editor-wrap {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  background: var(--bg);
+}
+#md-highlight {
+  position: absolute;
+  inset: 0;
+  padding: 20px 24px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  pointer-events: none;
+  tab-size: 2;
+  color: var(--text);
+}
+/* Syntax highlight classes */
+.mh-fm         { color: var(--text3); }
+.mh-h          { color: var(--accent); font-weight: 600; }
+.mh-quote      { color: var(--text3); }
+.mh-hr         { color: var(--text3); }
+.mh-fence      { color: var(--mh-code); }
+.mh-code-block { color: var(--mh-code); }
+.mh-code       { color: var(--mh-code); }
+.mh-bold       { font-weight: 700; }
+.mh-em         { font-style: italic; color: var(--text2); }
+.mh-link       { color: var(--accent); text-decoration: underline; }
+#md-editor {
+  position: absolute;
+  inset: 0;
   padding: 20px 24px;
   font-size: 14px;
   font-family: var(--font-mono);
@@ -269,11 +304,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border: none;
   outline: none;
   resize: none;
-  background: var(--bg);
-  color: var(--text);
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
   tab-size: 2;
+  z-index: 1;
 }
 #md-editor::placeholder { color: var(--text3); }
+#md-editor::selection   { color: var(--text); background: rgba(100,149,237,0.25); }
 #preview-pane {
   flex: 1;
   padding: 20px 28px;

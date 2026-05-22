@@ -29,7 +29,7 @@
 
   <div id="editor-pane">
     <div id="toolbar">
-      <input type="text" id="post-title-input" placeholder="post title…" oninput="markDirty(); autoSlug()" />
+      <input type="text" id="post-title-input" placeholder="post title…" autocomplete="off" oninput="markDirty(); autoSlug()" />
       <div class="sep"></div>
       <button onclick="togglePreview()" id="preview-btn">◎ preview</button>
       <button onclick="saveDraft()" id="save-btn">⬡ publish draft</button>
@@ -39,10 +39,13 @@
     <div id="frontmatter-bar">
       <label>date <input type="text" id="fm-date" placeholder="2025-05-19" oninput="markDirty()" style="width:100px" /></label>
       <label>tags <input type="text" id="fm-tags" oninput="markDirty()" style="width:150px" /></label>
-      <label>slug <input type="text" id="fm-slug" oninput="markDirty(); slugEdited=true" /></label>
+      <label>slug <input type="text" id="fm-slug" autocomplete="off" oninput="markDirty(); window.slugEdited=true" /></label>
     </div>
     <div id="editor-area">
-      <textarea id="md-editor" spellcheck="true" placeholder="start writing in markdown…" oninput="markDirty(); updatePreview(); updateWordCount()"></textarea>
+      <div id="md-editor-wrap">
+        <div id="md-highlight" aria-hidden="true"></div>
+        <textarea id="md-editor" spellcheck="false" placeholder="start writing in markdown…" oninput="markDirty(); updateHighlight(); updatePreview(); updateWordCount()"></textarea>
+      </div>
       <div id="splitter"></div>
       <div id="preview-pane"></div>
     </div>

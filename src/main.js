@@ -147,11 +147,11 @@ let _searchFilter = '';
 let currentPost = null;
 let dirty = false;
 let previewing = false;
-let slugEdited = false;
 let _ctxTarget = null;        // { path, type } for context menu
 let _newPostFolder = '';      // absolute path of folder for next new-post-in-folder
 
-window.slugEdited = false; // expose for oninput handler
+// slugEdited lives on window so both module code and inline oninput handlers share one variable
+window.slugEdited = false;
 
 // ── UI helpers ────────────────────────────────────────────────────
 function toast(msg, type = '', dur = 2500) {
@@ -201,7 +201,7 @@ function slugify(str) {
 }
 
 window.autoSlug = function() {
-  if (slugEdited) return;
+  if (window.slugEdited) return;
   const title = document.getElementById('post-title-input').value;
   document.getElementById('fm-slug').value = slugify(title);
 };
@@ -226,12 +226,13 @@ function parseFrontmatter(raw) {
     const draft = /draft\s*=\s*true/.test(header);
     const date = ((header.match(/date\s*=\s*["']?(\S+?)["']?\s*$/) || [])[1] || '').replace(/["']/g, '');
     const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
+    const slug = (header.match(/slug\s*=\s*"([^"]*)"/) || [])[1] || '';
     // Tags live under [taxonomies] in Zola; also handle top-level tags = [...]
     const taxSection = header.match(/\[taxonomies\]([\s\S]*?)(?=\n\[|\s*$)/);
     const tagSource = taxSection ? taxSection[1] : header;
     const tagMatch = tagSource.match(/\btags\s*=\s*\[([^\]]*)\]/);
     const tags = tagMatch ? tagMatch[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
-    return { title, draft, date, tags, description, body, format: 'toml' };
+    return { title, slug, draft, date, tags, description, body, format: 'toml' };
   }
   // YAML frontmatter (--- delimiters)
   m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -242,6 +243,7 @@ function parseFrontmatter(raw) {
     const draft = /^draft:\s*true\s*$/m.test(header);
     const date = (header.match(/^date:\s*(\S+)/m) || [])[1] || '';
     const description = ((header.match(/^description:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+    const slug = ((header.match(/^slug:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
     // Tags: look under taxonomies.tags first (Zola convention), then top-level tags
     // Matches both inline [a, b] and block list (- item) forms in either location
     function extractYamlTags(source) {
@@ -254,9 +256,9 @@ function parseFrontmatter(raw) {
     const taxSection = header.match(/^taxonomies:\s*\n((?:[ \t]+\S[^\n]*\n?)*)/m);
     let tags = taxSection ? extractYamlTags(taxSection[1]) : '';
     if (!tags) tags = extractYamlTags(header);
-    return { title, draft, date, tags, description, body, format: 'yaml' };
+    return { title, slug, draft, date, tags, description, body, format: 'yaml' };
   }
-  return { title: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
+  return { title: '', slug: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
 }
 
 // ── GitHub API ────────────────────────────────────────────────────
@@ -491,11 +493,13 @@ window.openTreeFile = async function(path, sha) {
     document.getElementById('md-editor').value = fm.body;
     document.getElementById('fm-date').value = fm.date || todayISO();
     document.getElementById('fm-tags').value = fm.tags;
-    document.getElementById('fm-slug').value = path.split('/').pop().replace(/\.md$/, '');
-    slugEdited = true;
+    const filenameSlug = path.split('/').pop().replace(/\.md$/, '');
+    document.getElementById('fm-slug').value = fm.slug || filenameSlug;
+    window.slugEdited = true;
     document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
     setStatus(path);
     updateWordCount();
+    updateHighlight();
     updatePreview();
     renderTree();
   } catch (e) {
@@ -512,13 +516,14 @@ window.newPost = function() {
   if (dirty && !confirm('Discard unsaved changes?')) return;
   currentPost = null;
   markClean();
-  slugEdited = false;
+  window.slugEdited = false;
   document.getElementById('post-title-input').value = '';
   document.getElementById('md-editor').value = '';
   document.getElementById('fm-date').value = todayISO();
   document.getElementById('fm-tags').value = '';
   document.getElementById('fm-slug').value = '';
   document.getElementById('unpub-btn').style.display = 'none';
+  updateHighlight();
   renderTree();
   setStatus('new post', 0, 0);
   document.getElementById('post-title-input').focus();
@@ -735,6 +740,66 @@ function updatePreview() {
 }
 
 window.updatePreview = updatePreview;
+
+// ── Markdown syntax highlighting ──────────────────────────────────
+function applyInlineHighlight(l) {
+  l = l.replace(/(`[^`]+`)/g,             '<span class="mh-code">$1</span>');
+  l = l.replace(/(\*\*[^*\n]+?\*\*)/g,   '<span class="mh-bold">$1</span>');
+  l = l.replace(/(\*[^*\n]+?\*)/g,       '<span class="mh-em">$1</span>');
+  l = l.replace(/(\[[^\]\n]+\]\([^)\n]+\))/g, '<span class="mh-link">$1</span>');
+  return l;
+}
+
+function highlightMarkdown(raw) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const lines = raw.split('\n');
+  let inCodeBlock = false;
+  let inFrontmatter = false;
+  let fmDelimiter = '';
+
+  return lines.map((line, idx) => {
+    const el = esc(line);
+
+    // Frontmatter block at top of file
+    if (idx === 0 && (line === '+++' || line === '---')) {
+      inFrontmatter = true;
+      fmDelimiter = line;
+      return `<span class="mh-fm">${el}</span>`;
+    }
+    if (inFrontmatter) {
+      if (line === fmDelimiter) inFrontmatter = false;
+      return `<span class="mh-fm">${el}</span>`;
+    }
+
+    // Fenced code blocks
+    if (/^```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      return `<span class="mh-fence">${el}</span>`;
+    }
+    if (inCodeBlock) return `<span class="mh-code-block">${el}</span>`;
+
+    // Block-level
+    if (/^#{1,6} /.test(line))             return `<span class="mh-h">${applyInlineHighlight(el)}</span>`;
+    if (/^>/.test(line))                   return `<span class="mh-quote">${el}</span>`;
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) return `<span class="mh-hr">${el}</span>`;
+
+    return applyInlineHighlight(el);
+  }).join('\n');
+}
+
+function updateHighlight() {
+  const hl = document.getElementById('md-highlight');
+  if (!hl) return;
+  hl.innerHTML = highlightMarkdown(document.getElementById('md-editor').value);
+  hl.scrollTop  = document.getElementById('md-editor').scrollTop;
+}
+
+document.getElementById('md-editor').addEventListener('scroll', () => {
+  const hl = document.getElementById('md-highlight');
+  if (hl) hl.scrollTop = document.getElementById('md-editor').scrollTop;
+});
+
+window.updateHighlight = updateHighlight;
 
 // ── Settings modal ────────────────────────────────────────────────
 let _configRequired = false;
