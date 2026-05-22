@@ -224,7 +224,7 @@ function parseFrontmatter(raw) {
     const body = m[2].replace(/^\n/, '');
     const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
     const draft = /draft\s*=\s*true/.test(header);
-    const date = (header.match(/date\s*=\s*(\S+)/) || [])[1] || '';
+    const date = ((header.match(/date\s*=\s*["']?(\S+?)["']?\s*$/) || [])[1] || '').replace(/["']/g, '');
     const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
     // Tags live under [taxonomies] in Zola; also handle top-level tags = [...]
     const taxSection = header.match(/\[taxonomies\]([\s\S]*?)(?=\n\[|\s*$)/);
