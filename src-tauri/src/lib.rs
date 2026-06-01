@@ -70,9 +70,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![is_tauri, load_config, save_config, save_local, load_local])
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(not(mobile))]
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = _app.get_webview_window("main") {
                 let _ = window.set_focus();
             }
             Ok(())
