@@ -1,111 +1,192 @@
 # Zola Blog Editor
 
-A desktop blog editor for Zola sites hosted on GitHub. Write and publish posts
-without touching a terminal — drafts and published posts are committed directly
-to your repository via the GitHub API.
+A desktop (and Android) app for writing and publishing posts to a [Zola](https://www.getzola.org/) static site hosted on GitHub. Write in Markdown, manage drafts, and commit directly to your repo — no terminal required.
+
+Built with [Tauri 2](https://tauri.app/): a Rust backend wrapping a WebView frontend, with native credential storage and local file operations.
 
 ## Features
 
-- Browse all posts in `content/blog/` (or any path you configure)
-- Save drafts (`draft = true` in frontmatter) and publish with one click
-- Unpublish a live post back to draft
-- Side-by-side Markdown preview with resizable splitter
-- Frontmatter fields: title, date, tags, slug, description
-- Config persisted across sessions via OS-native store (Tauri plugin-store)
-- Keyboard shortcuts: `Ctrl+S` save draft, `Ctrl+Enter` publish, `Ctrl+N` new post, `Ctrl+P` preview
+- Collapsible file tree showing your full posts directory
+- Markdown editor with lightweight syntax highlighting
+- Live split-pane preview (resizable)
+- TOML (`+++`) and YAML (`---`) frontmatter support — title, date, tags, slug
+- Publish to GitHub with one click (commits via the GitHub Contents API)
+- Save a local draft without committing to GitHub
+- Move published posts back to draft
+- Right-click context menu: new post in folder, rename
+- Config and GitHub token persisted in the OS keychain via `tauri-plugin-store`
+- Keyboard shortcuts: `Ctrl+S` publish draft · `Ctrl+Enter` publish · `Ctrl+N` new post · `Ctrl+P` preview · `Ctrl+,` settings
 
-## Setup
+---
 
-### 1. Prerequisites
+## Prerequisites
 
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
+### Desktop (Windows)
 
-# On Linux, install WebKit and other deps:
-sudo apt install libwebkit2gtk-4.1-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev build-essential
+| Tool | Notes |
+|------|-------|
+| [Node.js](https://nodejs.org/) 18+ | |
+| [Rust](https://rustup.rs/) stable | |
+| [Visual Studio C++ build tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) | Required by Tauri on Windows |
+| WebView2 runtime | Pre-installed on Windows 10 / 11 |
 
-# Install Node (if not present), then Tauri CLI:
+### Android (additional requirements)
+
+| Tool | Notes |
+|------|-------|
+| [JDK 17](https://adoptium.net/) | Temurin 17 LTS recommended; set `JAVA_HOME` |
+| [Android Studio](https://developer.android.com/studio) | Installs the Android SDK |
+| Android NDK | Android Studio → SDK Manager → SDK Tools → NDK (Side by side) |
+| Windows Developer Mode | Settings → System → For developers → Developer Mode (needed for symlink creation during build) |
+
+Set environment variables:
+
+```powershell
+$env:JAVA_HOME    = "C:\Program Files\Eclipse Adoptium\jdk-17.x.x.x-hotspot"
+$env:ANDROID_HOME = "C:\Users\<you>\AppData\Local\Android\Sdk"
+$env:NDK_HOME     = "C:\Users\<you>\AppData\Local\Android\Sdk\ndk\<version>"
+# Also add %ANDROID_HOME%\platform-tools to PATH
+```
+
+Install Android Rust cross-compilation targets:
+
+```powershell
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+```
+
+---
+
+## Building
+
+Install JS dependencies (one-time):
+
+```powershell
 npm install
 ```
 
-### 2. Get a GitHub Personal Access Token
+### Desktop
 
-1. Go to github.com/settings/tokens
-2. Generate new token → Classic
-3. Check the **repo** scope
-4. Copy the token (you'll only see it once)
-
-### 3. Run in development
-
-```bash
-npm run dev
-```
-
-This opens a live-reloading window. The frontend is in `src/index.html`.
-
-### 4. Build a release binary
-
-```bash
+```powershell
 npm run build
 ```
 
-Output lands in `src-tauri/target/release/bundle/`:
-- `.deb` / `.AppImage` on Linux
-- `.dmg` / `.app` on macOS
-- `.msi` / `.exe` on Windows
+### Android
+
+```powershell
+npm run android:build            # release APK (unsigned)
+npm run tauri -- android build --debug   # debug APK (auto-signed, directly installable)
+```
+
+### Development / hot-reload
+
+```powershell
+npm run dev                      # desktop
+npm run android:dev              # Android — requires a connected device or running emulator
+```
+
+---
+
+## Output artifacts
+
+### Desktop
+
+| Artifact | Path |
+|----------|------|
+| NSIS installer (`.exe`) | `src-tauri\target\release\bundle\nsis\` |
+| WiX installer (`.msi`) | `src-tauri\target\release\bundle\msi\` |
+| Raw executable | `src-tauri\target\release\zola-blog-editor.exe` |
+
+> Cargo build output is stored outside Dropbox at  
+> `C:\Users\<you>\.cargo-targets\zola-blog-editor\`  
+> to avoid file-lock conflicts. See `.cargo/config.toml`.
+
+### Android
+
+| Artifact | Path |
+|----------|------|
+| Release APK (unsigned) | `src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release-unsigned.apk` |
+| Debug APK (debug-signed) | `src-tauri\gen\android\app\build\outputs\apk\universal\debug\app-universal-debug.apk` |
+
+Install the debug APK directly via ADB:
+
+```powershell
+adb install src-tauri\gen\android\app\build\outputs\apk\universal\debug\app-universal-debug.apk
+```
+
+**Signing the release APK for distribution:**
+
+```powershell
+# Generate a keystore (one-time)
+keytool -genkey -v -keystore zola-blog-editor.jks -alias zola -keyalg RSA -keysize 2048 -validity 10000
+
+# Sign
+$bt = "$env:LOCALAPPDATA\Android\Sdk\build-tools\$(Get-ChildItem $env:LOCALAPPDATA\Android\Sdk\build-tools | Sort-Object Name | Select-Object -Last 1 -ExpandProperty Name)"
+& "$bt\apksigner.exe" sign --ks zola-blog-editor.jks --ks-key-alias zola --out app-signed.apk `
+    "src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release-unsigned.apk"
+```
+
+---
 
 ## Project structure
 
 ```
 zola-blog-editor/
+├── .cargo/
+│   └── config.toml          # Cargo target-dir (kept outside Dropbox)
 ├── src/
-│   └── index.html          # Full frontend (HTML + CSS + JS)
+│   ├── index.html           # App UI
+│   ├── main.js              # All frontend logic
+│   └── styles.css           # Styles and theme
 ├── src-tauri/
 │   ├── src/
-│   │   ├── main.rs         # Tauri entry point
-│   │   └── lib.rs          # Plugin registration
-│   ├── Cargo.toml          # Rust dependencies
-│   └── tauri.conf.json     # App config (name, window size, bundle)
+│   │   ├── main.rs          # Tauri entry point
+│   │   └── lib.rs           # Rust commands (config, local save/load)
+│   ├── gen/android/         # Generated Android project (Gradle)
+│   ├── capabilities/        # Tauri permission declarations
+│   ├── Cargo.toml
+│   └── tauri.conf.json      # App name, window size, bundle config
 └── package.json
 ```
 
-## Configuration
+---
 
-Settings are entered in the app's settings dialog (`Ctrl+,`) and persisted
-automatically. Fields:
+## First run
 
-| Field | Example |
-|---|---|
-| Token | `ghp_xxxxxxxxxxxx` |
-| Repository | `philwilson/my-blog` |
-| Branch | `main` |
-| Posts path | `content/blog` |
+On first launch the app opens a settings dialog. You need:
 
-## Notes on token storage
+- A **GitHub personal access token** — classic token, `repo` scope  
+  Create one at: github.com/settings/tokens → Generate new token (classic) → check **repo**
+- The **repository** in `owner/repo` format
+- The **branch** (default: `main`)
+- The **posts path** in the repo (default: `content/blog`)
 
-In the Tauri app, config is stored via `tauri-plugin-store` in a JSON file in
-your OS app data directory (`~/.local/share/zola-blog-editor/` on Linux,
-`~/Library/Application Support/` on macOS). This is not the OS keychain — if
-you want proper keychain storage, add `tauri-plugin-stronghold` or
-`tauri-plugin-keychain` and replace the `cfgSet`/`cfgGet` calls for the token.
+Settings are persisted across launches via the OS-native store.
 
-## Zola frontmatter format
+---
 
-Posts are written with TOML frontmatter (`+++` delimiters):
+## Frontmatter formats
 
+Both TOML and YAML frontmatter are supported.
+
+**TOML** (`+++` delimiters — Zola default):
 ```toml
 +++
 title = "My post title"
 date = 2025-05-19
 draft = true
-description = "A brief summary"
 
 [taxonomies]
 tags = ["zola", "web"]
 +++
+```
 
-Post body here...
+**YAML** (`---` delimiters):
+```yaml
+---
+title: My post title
+date: 2025-05-19
+draft: true
+taxonomies:
+  tags: [zola, web]
+---
 ```
