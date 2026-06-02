@@ -19,11 +19,15 @@
         <span style="color:var(--text3);font-size:10px;">⚙</span>
       </div>
       <div id="sidebar-actions">
-        <button onclick="newPost()" title="New post (Ctrl+N)">+ new</button>
-        <button onclick="loadPosts()" title="Refresh post list">↺ refresh</button>
-        <button id="theme-btn" onclick="cycleTheme()" title="Switch theme">○ theme</button>
+        <div class="action-row">
+          <button onclick="newPost()" title="New post (Ctrl+N)">+ new file</button>
+          <button onclick="newFolder()" title="New folder">+ new folder</button>
+        </div>
+        <div class="action-row">
+          <button onclick="loadPosts()" title="Refresh post list">↺ refresh</button>
+          <button id="theme-btn" onclick="cycleTheme()" title="Switch theme">○ theme</button>
+        </div>
       </div>
-      <input type="text" id="search-input" placeholder="filter files…" oninput="filterPosts(this.value)" />
     </div>
     <div id="post-list"></div>
   </div>

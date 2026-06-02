@@ -155,7 +155,7 @@ window.slugEdited = false;
 
 // ── Theme ─────────────────────────────────────────────────────────
 const _themes = ['light', 'dark', 'eink'];
-const _themeIcons = { light: '○', dark: '●', eink: '◑' };
+const _themeIcons = { light: '○ theme', dark: '● theme', eink: '◑ theme' };
 
 function setTheme(name) {
   document.documentElement.setAttribute('data-theme', name);
@@ -547,6 +547,29 @@ window.newPost = function() {
   renderTree();
   setStatus('new post', 0, 0);
   document.getElementById('post-title-input').focus();
+};
+
+// ── New folder ────────────────────────────────────────────────────
+window.newFolder = async function() {
+  if (!cfg.token || !cfg.repo) { openSettings(); return; }
+  const name = prompt('Folder name:');
+  if (!name || !name.trim()) return;
+  const folderSlug = slugify(name.trim()) || name.trim().toLowerCase().replace(/\s+/g, '-');
+  const prefix = cfg.postsPath.replace(/\/$/, '');
+  // Create a Zola section index so the folder is meaningful and visible in the tree
+  const path = `${prefix}/${folderSlug}/_index.md`;
+  const content = `+++\ntitle = "${name.trim()}"\nsort_by = "date"\n+++\n`;
+  try {
+    const existing = await getExistingSha(path);
+    if (existing) { toast('folder already exists', 'error'); return; }
+    await commitFile(path, content, null, `add section: ${folderSlug}`);
+    toast('folder created');
+    await loadPosts();
+    _expandedDirs.add(`${prefix}/${folderSlug}`);
+    renderTree();
+  } catch (e) {
+    toast('failed: ' + e.message, 'error');
+  }
 };
 
 // ── Get current content ───────────────────────────────────────────

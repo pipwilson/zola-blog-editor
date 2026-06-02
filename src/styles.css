@@ -221,10 +221,14 @@ body {
 
 #sidebar-actions {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.action-row {
+  display: flex;
   gap: 6px;
 }
-#sidebar-actions button { flex: 1; }
-#theme-btn { flex: none; padding: 5px 8px; }
+.action-row button { flex: 1; }
 
 /* ── Editor pane ── */
 #editor-pane {
