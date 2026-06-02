@@ -421,13 +421,18 @@ window.showCtxMenu = function(e, path, type) {
   const menu = document.getElementById('ctx-menu');
   document.getElementById('ctx-new-post').style.display = type === 'tree' ? '' : 'none';
   document.getElementById('ctx-rename').style.display   = type === 'blob' ? '' : 'none';
-  // Clamp to viewport
+  // Clamp to viewport.
+  // e.clientX/Y are in physical CSS pixels; the menu inherits body's zoom
+  // so its position values are in zoomed coordinates — divide to compensate.
   menu.style.left = '-9999px';
   menu.style.top  = '-9999px';
   menu.classList.add('show');
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
-  menu.style.left = Math.min(e.clientX, window.innerWidth  - mw - 4) + 'px';
-  menu.style.top  = Math.min(e.clientY, window.innerHeight - mh - 4) + 'px';
+  const zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+  const x = e.clientX / zoom;
+  const y = e.clientY / zoom;
+  menu.style.left = Math.min(x, window.innerWidth  / zoom - mw - 4) + 'px';
+  menu.style.top  = Math.min(y, window.innerHeight / zoom - mh - 4) + 'px';
 };
 
 function hideCtxMenu() {
