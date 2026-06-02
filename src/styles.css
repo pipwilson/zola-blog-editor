@@ -61,8 +61,14 @@ html[data-theme="eink"] {
   --mh-code: #000000;
 }
 
-/* E-ink: scale all text up 50% — zoom works on px-based layouts in Chromium */
-html[data-theme="eink"] body { zoom: 1.5; }
+/* E-ink: scale all text up 50% — zoom works on px-based layouts in Chromium.
+   height must be divided by the zoom factor so the body fills exactly the
+   viewport after scaling (otherwise the bottom third is clipped off-screen). */
+html[data-theme="eink"] body {
+  zoom: 1.5;
+  height: calc(100vh / 1.5);
+  width: calc(100vw / 1.5);
+}
 
 /* E-ink: 1px solid borders everywhere, no transitions (prevent ghosting) */
 html[data-theme="eink"] * {
