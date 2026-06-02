@@ -510,18 +510,33 @@ window.openTreeFile = async function(path, sha) {
       }
     }
 
+    const filename = path.split('/').pop();
+    const isIndex = filename === '_index.md';
     const fm = parseFrontmatter(raw);
-    currentPost = { name: path.split('/').pop(), path, sha: data.sha, raw, draft: fm.draft, title: fm.title, date: fm.date };
+    currentPost = { name: filename, path, sha: data.sha, raw, draft: fm.draft, title: fm.title, date: fm.date, isIndex };
     _fileMetaCache.set(path, { title: fm.title, draft: fm.draft, date: fm.date });
     markClean();
-    document.getElementById('post-title-input').value = fm.title;
-    document.getElementById('md-editor').value = fm.body;
-    document.getElementById('fm-date').value = fm.date || todayISO();
-    document.getElementById('fm-tags').value = fm.tags;
-    const filenameSlug = path.split('/').pop().replace(/\.md$/, '');
-    document.getElementById('fm-slug').value = fm.slug || filenameSlug;
-    window.slugEdited = true;
-    document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
+
+    if (isIndex) {
+      // Section index: edit raw content only, frontmatter fields are not applicable
+      setFrontmatterEditable(false);
+      document.getElementById('post-title-input').value = '';
+      document.getElementById('fm-date').value = '';
+      document.getElementById('fm-tags').value = '';
+      document.getElementById('fm-slug').value = '';
+      document.getElementById('md-editor').value = raw;
+      document.getElementById('unpub-btn').style.display = 'none';
+    } else {
+      setFrontmatterEditable(true);
+      document.getElementById('post-title-input').value = fm.title;
+      document.getElementById('md-editor').value = fm.body;
+      document.getElementById('fm-date').value = fm.date || todayISO();
+      document.getElementById('fm-tags').value = fm.tags;
+      const filenameSlug = path.split('/').pop().replace(/\.md$/, '');
+      document.getElementById('fm-slug').value = fm.slug || filenameSlug;
+      window.slugEdited = true;
+      document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
+    }
     setStatus(path);
     updateWordCount();
     updateHighlight();
@@ -531,6 +546,15 @@ window.openTreeFile = async function(path, sha) {
     toast('could not open: ' + e.message, 'error');
   }
 };
+
+function setFrontmatterEditable(on) {
+  const ids = ['post-title-input', 'fm-date', 'fm-tags', 'fm-slug'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.disabled = !on;
+  });
+  document.getElementById('frontmatter-bar').style.opacity = on ? '' : '0.35';
+}
 
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -542,6 +566,7 @@ window.newPost = function() {
   currentPost = null;
   markClean();
   window.slugEdited = false;
+  setFrontmatterEditable(true);
   document.getElementById('post-title-input').value = '';
   document.getElementById('md-editor').value = '';
   document.getElementById('fm-date').value = todayISO();
@@ -624,6 +649,10 @@ window.confirmNewFolder = async function() {
 
 // ── Get current content ───────────────────────────────────────────
 function getCurrentContent(isDraft) {
+  // Section index files are edited as raw content — skip frontmatter rebuilding
+  if (currentPost && currentPost.isIndex) {
+    return document.getElementById('md-editor').value;
+  }
   const title = document.getElementById('post-title-input').value || 'Untitled';
   const body = document.getElementById('md-editor').value;
   const date = document.getElementById('fm-date').value || todayISO();
