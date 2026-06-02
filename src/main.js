@@ -604,8 +604,18 @@ window.confirmNewFolder = async function() {
     if (existing) { toast('folder already exists', 'error'); return; }
     await commitFile(path, content, null, `add section: ${folderSlug}`);
     toast('folder created');
+
+    // Refresh tree from GitHub (loadPosts resets _expandedDirs to root only)
     await loadPosts();
-    _expandedDirs.add(`${parentPath}/${folderSlug}`);
+
+    // Re-expand the full ancestor chain so the new folder is immediately visible
+    const newFolderPath = `${parentPath}/${folderSlug}`;
+    const prefix = cfg.postsPath.replace(/\/$/, '');
+    let p = newFolderPath;
+    while (p && p !== prefix) {
+      _expandedDirs.add(p);
+      p = p.substring(0, p.lastIndexOf('/'));
+    }
     renderTree();
   } catch (e) {
     toast('failed: ' + e.message, 'error');
