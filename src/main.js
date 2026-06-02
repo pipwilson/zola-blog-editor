@@ -561,39 +561,14 @@ function escapeHtml(str) {
 }
 
 // ── New post ──────────────────────────────────────────────────────
-window.newPost = function() {
-  if (dirty && !confirm('Discard unsaved changes?')) return;
-  currentPost = null;
-  markClean();
-  window.slugEdited = false;
-  setFrontmatterEditable(true);
-  document.getElementById('post-title-input').value = '';
-  document.getElementById('md-editor').value = '';
-  document.getElementById('fm-date').value = todayISO();
-  document.getElementById('fm-tags').value = '';
-  document.getElementById('fm-slug').value = '';
-  document.getElementById('unpub-btn').style.display = 'none';
-  updateHighlight();
-  renderTree();
-  setStatus('new post', 0, 0);
-  document.getElementById('post-title-input').focus();
-};
-
-// ── New folder modal ──────────────────────────────────────────────
-window.newFolder = function() {
-  if (!cfg.token || !cfg.repo) { openSettings(); return; }
-
+function _populateFolderSelect(selectId, preselect) {
   const prefix = cfg.postsPath.replace(/\/$/, '');
-  const select = document.getElementById('nf-parent');
+  const select = document.getElementById(selectId);
   select.innerHTML = '';
-
-  // Root option
   const rootOpt = document.createElement('option');
   rootOpt.value = prefix;
   rootOpt.textContent = '/ (posts root)';
   select.appendChild(rootOpt);
-
-  // One option per existing directory, sorted by path
   _treeItems
     .filter(i => i.type === 'tree')
     .sort((a, b) => a.path.localeCompare(b.path))
@@ -603,7 +578,48 @@ window.newFolder = function() {
       opt.textContent = '/' + dir.relPath;
       select.appendChild(opt);
     });
+  if (preselect) select.value = preselect;
+}
 
+window.newPost = function() {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  _populateFolderSelect('np-folder', _newPostFolder || null);
+  document.getElementById('np-title').value = '';
+  document.getElementById('np-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('np-title').focus(), 50);
+};
+
+window.closeNewPostModal = function() {
+  document.getElementById('np-overlay').classList.remove('show');
+};
+
+window.confirmNewPost = function() {
+  const folder = document.getElementById('np-folder').value;
+  const title  = document.getElementById('np-title').value.trim();
+  if (!title) { document.getElementById('np-title').focus(); return; }
+  window.closeNewPostModal();
+
+  _newPostFolder = folder;
+  currentPost = null;
+  markClean();
+  window.slugEdited = false;
+  setFrontmatterEditable(true);
+  document.getElementById('post-title-input').value = title;
+  document.getElementById('md-editor').value = '';
+  document.getElementById('fm-date').value = todayISO();
+  document.getElementById('fm-tags').value = '';
+  document.getElementById('fm-slug').value = slugify(title);
+  document.getElementById('unpub-btn').style.display = 'none';
+  updateHighlight();
+  renderTree();
+  setStatus('new post', 0, 0);
+  document.getElementById('md-editor').focus();
+};
+
+// ── New folder modal ──────────────────────────────────────────────
+window.newFolder = function() {
+  if (!cfg.token || !cfg.repo) { openSettings(); return; }
+  _populateFolderSelect('nf-parent', null);
   document.getElementById('nf-name').value = '';
   document.getElementById('nf-overlay').classList.add('show');
   setTimeout(() => document.getElementById('nf-name').focus(), 50);

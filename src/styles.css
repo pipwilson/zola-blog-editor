@@ -473,7 +473,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #modal .hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }
 #modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
 
-/* New-folder modal */
+/* New-post and new-folder picker modals (shared styles) */
+#np-overlay,
 #nf-overlay {
   display: none;
   position: fixed;
@@ -483,7 +484,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   justify-content: center;
   z-index: 100;
 }
+#np-overlay.show,
 #nf-overlay.show { display: flex; }
+#np-modal,
 #nf-modal {
   background: var(--bg2);
   border: 0.5px solid var(--border2);
@@ -492,11 +495,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   width: 320px;
   max-width: 90vw;
 }
+#np-modal h3,
 #nf-modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+#np-modal label,
 #nf-modal label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; margin-top: 14px; }
+#np-modal label:first-of-type,
 #nf-modal label:first-of-type { margin-top: 0; }
-#nf-modal select,
-#nf-modal input[type=text] {
+#np-modal select, #np-modal input[type=text],
+#nf-modal select, #nf-modal input[type=text] {
   width: 100%;
   font-size: 13px;
   padding: 8px 10px;
@@ -507,8 +513,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   outline: none;
   font-family: var(--font-mono);
 }
-#nf-modal select:focus,
-#nf-modal input[type=text]:focus { border-color: var(--accent); }
+#np-modal select:focus, #np-modal input[type=text]:focus,
+#nf-modal select:focus, #nf-modal input[type=text]:focus { border-color: var(--accent); }
+#np-actions,
 #nf-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
 
 /* Context menu */

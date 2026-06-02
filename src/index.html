@@ -89,6 +89,21 @@
   </div>
 </div>
 
+<div id="np-overlay">
+  <div id="np-modal">
+    <h3>New post</h3>
+    <label>Create in</label>
+    <select id="np-folder"></select>
+    <label>Post title</label>
+    <input type="text" id="np-title" placeholder="My new post" autocomplete="off"
+           onkeydown="if(event.key==='Enter')window.confirmNewPost();if(event.key==='Escape')window.closeNewPostModal()" />
+    <div id="np-actions">
+      <button onclick="window.closeNewPostModal()">cancel</button>
+      <button class="primary" onclick="window.confirmNewPost()">create →</button>
+    </div>
+  </div>
+</div>
+
 <div id="nf-overlay">
   <div id="nf-modal">
     <h3>New folder</h3>
