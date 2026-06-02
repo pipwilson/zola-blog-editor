@@ -34,7 +34,7 @@ Built with [Tauri 2](https://tauri.app/): a Rust backend wrapping a WebView fron
 
 | Tool | Notes |
 |------|-------|
-| [JDK 17](https://adoptium.net/) | Temurin 17 LTS recommended; set `JAVA_HOME` |
+| [JDK 17](https://adoptium.net/) | Temurin 17 LTS recommended |
 | [Android Studio](https://developer.android.com/studio) | Installs the Android SDK |
 | Android NDK | Android Studio → SDK Manager → SDK Tools → NDK (Side by side) |
 | Windows Developer Mode | Settings → System → For developers → Developer Mode (needed for symlink creation during build) |
@@ -96,8 +96,8 @@ npm run android:dev              # Android — requires a connected device or ru
 | WiX installer (`.msi`) | `src-tauri\target\release\bundle\msi\` |
 | Raw executable | `src-tauri\target\release\zola-blog-editor.exe` |
 
-> Cargo build output is stored outside Dropbox at  
-> `C:\Users\<you>\.cargo-targets\zola-blog-editor\`  
+> Cargo build output is stored outside Dropbox at
+> `C:\Users\<you>\.cargo-targets\zola-blog-editor\`
 > to avoid file-lock conflicts. See `.cargo/config.toml`.
 
 ### Android
@@ -132,7 +132,7 @@ $bt = "$env:LOCALAPPDATA\Android\Sdk\build-tools\$(Get-ChildItem $env:LOCALAPPDA
 ```
 zola-blog-editor/
 ├── .cargo/
-│   └── config.toml          # Cargo target-dir (kept outside Dropbox)
+│   └── config.toml          # Cargo target-dir
 ├── src/
 │   ├── index.html           # App UI
 │   ├── main.js              # All frontend logic
@@ -154,7 +154,7 @@ zola-blog-editor/
 
 On first launch the app opens a settings dialog. You need:
 
-- A **GitHub personal access token** — classic token, `repo` scope  
+- A **GitHub personal access token** — classic token, `repo` scope
   Create one at: github.com/settings/tokens → Generate new token (classic) → check **repo**
 - The **repository** in `owner/repo` format
 - The **branch** (default: `main`)
