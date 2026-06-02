@@ -2,3 +2,11 @@ node_modules/
 src-tauri/target/
 .claude/
 *.local
+
+# Android IDE/Gradle caches
+src-tauri/gen/android/.idea/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/buildSrc/.gradle/
+src-tauri/gen/android/buildSrc/.kotlin/
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/app/build/
