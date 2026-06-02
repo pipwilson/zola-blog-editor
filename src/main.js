@@ -554,23 +554,58 @@ window.newPost = function() {
   document.getElementById('post-title-input').focus();
 };
 
-// ── New folder ────────────────────────────────────────────────────
-window.newFolder = async function() {
+// ── New folder modal ──────────────────────────────────────────────
+window.newFolder = function() {
   if (!cfg.token || !cfg.repo) { openSettings(); return; }
-  const name = prompt('Folder name:');
-  if (!name || !name.trim()) return;
-  const folderSlug = slugify(name.trim()) || name.trim().toLowerCase().replace(/\s+/g, '-');
+
   const prefix = cfg.postsPath.replace(/\/$/, '');
-  // Create a Zola section index so the folder is meaningful and visible in the tree
-  const path = `${prefix}/${folderSlug}/_index.md`;
-  const content = `+++\ntitle = "${name.trim()}"\nsort_by = "date"\n+++\n`;
+  const select = document.getElementById('nf-parent');
+  select.innerHTML = '';
+
+  // Root option
+  const rootOpt = document.createElement('option');
+  rootOpt.value = prefix;
+  rootOpt.textContent = '/ (posts root)';
+  select.appendChild(rootOpt);
+
+  // One option per existing directory, sorted by path
+  _treeItems
+    .filter(i => i.type === 'tree')
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .forEach(dir => {
+      const opt = document.createElement('option');
+      opt.value = dir.path;
+      opt.textContent = '/' + dir.relPath;
+      select.appendChild(opt);
+    });
+
+  document.getElementById('nf-name').value = '';
+  document.getElementById('nf-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('nf-name').focus(), 50);
+};
+
+window.closeNewFolderModal = function() {
+  document.getElementById('nf-overlay').classList.remove('show');
+};
+
+window.confirmNewFolder = async function() {
+  const parentPath = document.getElementById('nf-parent').value;
+  const name = document.getElementById('nf-name').value.trim();
+  if (!name) { document.getElementById('nf-name').focus(); return; }
+
+  const folderSlug = slugify(name) || name.toLowerCase().replace(/\s+/g, '-');
+  const path = `${parentPath}/${folderSlug}/_index.md`;
+  const content = `+++\ntitle = "${name}"\nsort_by = "date"\n+++\n`;
+
+  window.closeNewFolderModal();
+
   try {
     const existing = await getExistingSha(path);
     if (existing) { toast('folder already exists', 'error'); return; }
     await commitFile(path, content, null, `add section: ${folderSlug}`);
     toast('folder created');
     await loadPosts();
-    _expandedDirs.add(`${prefix}/${folderSlug}`);
+    _expandedDirs.add(`${parentPath}/${folderSlug}`);
     renderTree();
   } catch (e) {
     toast('failed: ' + e.message, 'error');

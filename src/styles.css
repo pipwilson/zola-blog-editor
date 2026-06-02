@@ -473,6 +473,44 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #modal .hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }
 #modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
 
+/* New-folder modal */
+#nf-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--modal-overlay-bg);
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+#nf-overlay.show { display: flex; }
+#nf-modal {
+  background: var(--bg2);
+  border: 0.5px solid var(--border2);
+  border-radius: 10px;
+  padding: 24px;
+  width: 320px;
+  max-width: 90vw;
+}
+#nf-modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+#nf-modal label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; margin-top: 14px; }
+#nf-modal label:first-of-type { margin-top: 0; }
+#nf-modal select,
+#nf-modal input[type=text] {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text);
+  outline: none;
+  font-family: var(--font-mono);
+}
+#nf-modal select:focus,
+#nf-modal input[type=text]:focus { border-color: var(--accent); }
+#nf-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
 /* Context menu */
 #ctx-menu {
   position: fixed;

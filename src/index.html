@@ -89,6 +89,21 @@
   </div>
 </div>
 
+<div id="nf-overlay">
+  <div id="nf-modal">
+    <h3>New folder</h3>
+    <label>Create inside</label>
+    <select id="nf-parent"></select>
+    <label>Folder name</label>
+    <input type="text" id="nf-name" placeholder="my-section" autocomplete="off"
+           onkeydown="if(event.key==='Enter')window.confirmNewFolder();if(event.key==='Escape')window.closeNewFolderModal()" />
+    <div id="nf-actions">
+      <button onclick="window.closeNewFolderModal()">cancel</button>
+      <button class="primary" onclick="window.confirmNewFolder()">create →</button>
+    </div>
+  </div>
+</div>
+
 <div id="ctx-menu">
   <div class="ctx-item" id="ctx-new-post" onclick="window.ctxNewPost()">+ new post here</div>
   <div class="ctx-item" id="ctx-rename"   onclick="window.ctxRename()">✎ rename</div>
