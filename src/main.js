@@ -571,7 +571,7 @@ function _populateFolderSelect(selectId, preselect) {
   select.appendChild(rootOpt);
   _treeItems
     .filter(i => i.type === 'tree')
-    .sort((a, b) => a.path.localeCompare(b.path))
+    .sort((a, b) => b.path.localeCompare(a.path))
     .forEach(dir => {
       const opt = document.createElement('option');
       opt.value = dir.path;
