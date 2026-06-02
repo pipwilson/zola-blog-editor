@@ -153,6 +153,26 @@ let _newPostFolder = '';      // absolute path of folder for next new-post-in-fo
 // slugEdited lives on window so both module code and inline oninput handlers share one variable
 window.slugEdited = false;
 
+// ── Theme ─────────────────────────────────────────────────────────
+const _themes = ['light', 'dark', 'eink'];
+const _themeIcons = { light: '○', dark: '●', eink: '◑' };
+
+function setTheme(name) {
+  document.documentElement.setAttribute('data-theme', name);
+  localStorage.setItem('theme', name);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = _themeIcons[name] ?? '○';
+}
+
+window.cycleTheme = function() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = _themes[(_themes.indexOf(current) + 1) % _themes.length];
+  setTheme(next);
+};
+
+// Apply persisted theme immediately (before first paint)
+setTheme(localStorage.getItem('theme') || 'light');
+
 // ── UI helpers ────────────────────────────────────────────────────
 function toast(msg, type = '', dur = 2500) {
   const t = document.getElementById('toast');

@@ -42,6 +42,57 @@ html[data-theme="dark"] {
   --mh-code: #c97a50;
 }
 
+html[data-theme="eink"] {
+  --bg: #ffffff;
+  --bg2: #f0f0f0;
+  --bg3: #dcdcdc;
+  --border: rgba(0,0,0,0.35);
+  --border2: rgba(0,0,0,0.75);
+  --text: #000000;
+  --text2: #111111;
+  --text3: #505050;
+  --accent: #000000;
+  --accent-dim: rgba(0,0,0,0.07);
+  --amber: #111111;
+  --amber-dim: rgba(0,0,0,0.07);
+  --danger: #000000;
+  --danger-dim: rgba(0,0,0,0.07);
+  --modal-overlay-bg: rgba(0,0,0,0.45);
+  --mh-code: #000000;
+}
+
+/* E-ink: 1px solid borders everywhere, no transitions (prevent ghosting) */
+html[data-theme="eink"] * {
+  border-width: 1px !important;
+  transition: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* E-ink: syntax highlighting uses weight/style rather than colour */
+html[data-theme="eink"] .mh-h          { color: #000; font-weight: 800; }
+html[data-theme="eink"] .mh-fm         { color: var(--text3); }
+html[data-theme="eink"] .mh-quote      { color: var(--text3); font-style: italic; }
+html[data-theme="eink"] .mh-fence,
+html[data-theme="eink"] .mh-code-block,
+html[data-theme="eink"] .mh-code       { color: #000; font-style: italic; }
+html[data-theme="eink"] .mh-em         { color: #000; font-style: italic; }
+html[data-theme="eink"] .mh-link       { color: #000; text-decoration: underline; }
+html[data-theme="eink"] .mh-bold       { font-weight: 800; }
+
+/* E-ink: badges — use inverted fill instead of colour */
+html[data-theme="eink"] .badge-draft { background: var(--bg3); color: #000; border: 1px solid #666 !important; }
+html[data-theme="eink"] .badge-pub   { background: #000; color: #fff; border: 1px solid #000 !important; }
+
+/* E-ink: primary/danger buttons use weight instead of colour */
+html[data-theme="eink"] button.primary { border-color: #000; color: #000; font-weight: 700; }
+html[data-theme="eink"] button.primary:hover { background: var(--bg3); }
+html[data-theme="eink"] button.danger  { border-color: #000; color: #000; border-style: dashed !important; }
+html[data-theme="eink"] button.danger:hover { background: var(--bg3); }
+
+/* E-ink: text selection inverts instead of blue tint */
+html[data-theme="eink"] #md-editor::selection { color: #fff; background: #000; }
+
 body {
   font-family: var(--font-ui);
   background: var(--bg);
@@ -166,6 +217,7 @@ body {
   gap: 6px;
 }
 #sidebar-footer button { flex: 1; }
+#theme-btn { flex: none; padding: 5px 8px; }
 
 /* ── Editor pane ── */
 #editor-pane {
