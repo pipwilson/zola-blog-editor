@@ -916,6 +916,15 @@ document.addEventListener('mouseup', () => {
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
   try {
+    // Stamp the editor placeholder with the build's git hash
+    if (window.__TAURI_INTERNALS__) {
+      const hash = await tauriInvoke('git_hash').catch(() => null);
+      if (hash) {
+        document.getElementById('md-editor').placeholder =
+          `start writing in markdown…  [${hash}]`;
+      }
+    }
+
     // Try loading from Tauri store; fall back to sessionStorage
     const saved = await loadPersistedConfig()
       || JSON.parse(sessionStorage.getItem('cfg') || 'null');

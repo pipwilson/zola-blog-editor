@@ -7,6 +7,11 @@ fn is_tauri() -> bool {
 }
 
 #[tauri::command]
+fn git_hash() -> &'static str {
+    env!("GIT_HASH")
+}
+
+#[tauri::command]
 fn load_config(app: tauri::AppHandle) -> serde_json::Value {
     let Ok(store) = app.store("config.json") else {
         return serde_json::json!({});
@@ -69,7 +74,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![is_tauri, load_config, save_config, save_local, load_local])
+        .invoke_handler(tauri::generate_handler![is_tauri, git_hash, load_config, save_config, save_local, load_local])
         .setup(|_app| {
             #[cfg(not(mobile))]
             if let Some(window) = _app.get_webview_window("main") {
