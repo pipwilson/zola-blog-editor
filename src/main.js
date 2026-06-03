@@ -636,7 +636,7 @@ window.confirmNewFolder = async function() {
 
   const folderSlug = slugify(name) || name.toLowerCase().replace(/\s+/g, '-');
   const path = `${parentPath}/${folderSlug}/_index.md`;
-  const content = `+++\ntitle = "${name}"\ndate = "${todayISO()}"\nsort_by = "date"\n+++\n`;
+  const content = `+++\ntitle = "${todayISO()}"\nsort_by = "date"\n+++\n`;
 
   window.closeNewFolderModal();
 
