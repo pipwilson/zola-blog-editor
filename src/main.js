@@ -663,6 +663,59 @@ window.confirmNewFolder = async function() {
   }
 };
 
+// ── Upload file ───────────────────────────────────────────────────
+let _uploadFileData = null; // { name, base64 }
+
+window.uploadFile = function() {
+  if (!cfg.token || !cfg.repo) { openSettings(); return; }
+  _populateFolderSelect('ul-folder', null);
+  _uploadFileData = null;
+  document.getElementById('ul-filename').value = '';
+  document.getElementById('ul-file-input').value = '';
+  document.getElementById('ul-confirm-btn').disabled = true;
+  document.getElementById('ul-overlay').classList.add('show');
+};
+
+window.closeUploadModal = function() {
+  document.getElementById('ul-overlay').classList.remove('show');
+};
+
+window.handleUploadFileSelect = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // data URL is "data:<type>;base64,<content>" — strip the prefix
+    _uploadFileData = { name: file.name, base64: e.target.result.split(',')[1] };
+    document.getElementById('ul-filename').value = file.name;
+    document.getElementById('ul-confirm-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.confirmUpload = async function() {
+  if (!_uploadFileData) return;
+  const folder = document.getElementById('ul-folder').value;
+  const path = `${folder}/${_uploadFileData.name}`;
+  window.closeUploadModal();
+  setStatus('uploading…');
+  try {
+    const sha = await getExistingSha(path);
+    const body = { message: `upload: ${_uploadFileData.name}`, content: _uploadFileData.base64, branch: cfg.branch };
+    if (sha) body.sha = sha;
+    await ghFetch(`contents/${path}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    toast('uploaded ✓');
+    await loadPosts();
+  } catch (e) {
+    toast('upload failed: ' + e.message, 'error');
+    setStatus('upload failed');
+  }
+};
+
 // ── Get current content ───────────────────────────────────────────
 function getCurrentContent(isDraft) {
   // Section index files are edited as raw content — skip frontmatter rebuilding

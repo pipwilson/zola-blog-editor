@@ -12,7 +12,8 @@
   <div id="sidebar">
     <div id="sidebar-top">
       <div class="repo-label">
-        ⌥ repository
+        <span>⌥ repository</span>
+        <span class="repo-refresh" onclick="loadPosts()" title="Refresh file tree">↺</span>
       </div>
       <div id="repo-display" onclick="openSettings()" title="Click to change settings">
         <span id="repo-display-text">not connected</span>
@@ -24,7 +25,7 @@
           <button onclick="newFolder()" title="New folder">+ new folder</button>
         </div>
         <div class="action-row">
-          <button onclick="loadPosts()" title="Refresh post list">↺ refresh</button>
+          <button onclick="uploadFile()" title="Upload a file to the repo">↑ upload</button>
           <button id="theme-btn" onclick="cycleTheme()" title="Switch theme">○ theme</button>
         </div>
       </div>
@@ -100,6 +101,25 @@
     <div id="np-actions">
       <button onclick="window.closeNewPostModal()">cancel</button>
       <button class="primary" onclick="window.confirmNewPost()">create →</button>
+    </div>
+  </div>
+</div>
+
+<div id="ul-overlay">
+  <div id="ul-modal">
+    <h3>Upload file</h3>
+    <label>Upload to</label>
+    <select id="ul-folder"></select>
+    <label>File</label>
+    <div class="ul-file-row">
+      <input type="text" id="ul-filename" placeholder="no file chosen" readonly />
+      <button onclick="document.getElementById('ul-file-input').click()">choose…</button>
+    </div>
+    <input type="file" id="ul-file-input" style="display:none"
+           onchange="window.handleUploadFileSelect(this)" />
+    <div id="ul-actions">
+      <button onclick="window.closeUploadModal()">cancel</button>
+      <button class="primary" id="ul-confirm-btn" onclick="window.confirmUpload()" disabled>↑ upload</button>
     </div>
   </div>
 </div>
