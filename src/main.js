@@ -1067,9 +1067,16 @@ const splitter = document.getElementById('splitter');
 let _splitterDragging = false;
 let _splitterStartX, _splitterStartWrapWidth;
 
+function _zoomedX(clientX) {
+  // e.clientX is in physical viewport pixels; offsetWidth is in the pre-zoom
+  // coordinate space. Divide by body zoom so the delta is in the same units.
+  const zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+  return clientX / zoom;
+}
+
 function _splitterStart(clientX) {
   _splitterDragging = true;
-  _splitterStartX = clientX;
+  _splitterStartX = _zoomedX(clientX);
   _splitterStartWrapWidth = document.getElementById('md-editor-wrap').offsetWidth;
   splitter.classList.add('dragging');
 }
@@ -1079,7 +1086,7 @@ function _splitterMove(clientX) {
   const wrap  = document.getElementById('md-editor-wrap');
   const pv    = document.getElementById('preview-pane');
   const total = wrap.offsetWidth + splitter.offsetWidth + pv.offsetWidth;
-  const dx    = clientX - _splitterStartX;
+  const dx    = _zoomedX(clientX) - _splitterStartX;
   const newW  = Math.max(200, Math.min(total - 200, _splitterStartWrapWidth + dx));
   wrap.style.flex  = 'none';
   wrap.style.width = newW + 'px';
