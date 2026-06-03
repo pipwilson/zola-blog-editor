@@ -623,8 +623,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   display: none;
   width: 4px;
   cursor: col-resize;
-  background: transparent;
+  background: var(--border2);
   flex-shrink: 0;
   transition: background 0.1s;
 }
-#splitter:hover, #splitter.dragging { background: var(--border2); }
+#splitter:hover, #splitter.dragging { background: var(--text3); }
