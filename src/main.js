@@ -886,21 +886,26 @@ window.unpublish = async function() {
 // ── Preview ───────────────────────────────────────────────────────
 window.togglePreview = function() {
   previewing = !previewing;
-  const btn = document.getElementById('preview-btn');
-  const ed = document.getElementById('md-editor');
-  const pv = document.getElementById('preview-pane');
-  const sp = document.getElementById('splitter');
+  const btn  = document.getElementById('preview-btn');
+  const wrap = document.getElementById('md-editor-wrap');
+  const pv   = document.getElementById('preview-pane');
+  const sp   = document.getElementById('splitter');
   if (previewing) {
     updatePreview();
-    ed.style.flex = '1';
+    // Reset any manual width left over from a previous drag
+    wrap.style.flex  = '1';
+    wrap.style.width = '';
     pv.style.display = 'block';
-    pv.style.flex = '1';
+    pv.style.flex    = '1';
+    pv.style.width   = '';
     sp.style.display = 'block';
-    btn.textContent = '✕ preview';
+    btn.textContent  = '✕ preview';
   } else {
     pv.style.display = 'none';
     sp.style.display = 'none';
-    btn.textContent = '◎ preview';
+    wrap.style.flex  = '1';
+    wrap.style.width = '';
+    btn.textContent  = '◎ preview';
   }
 };
 
@@ -1059,30 +1064,42 @@ document.addEventListener('keydown', e => {
 
 // ── Splitter drag ─────────────────────────────────────────────────
 const splitter = document.getElementById('splitter');
-let dragging = false;
-let startX, startEditorWidth;
-splitter.addEventListener('mousedown', e => {
-  dragging = true;
-  startX = e.clientX;
-  startEditorWidth = document.getElementById('md-editor').offsetWidth;
+let _splitterDragging = false;
+let _splitterStartX, _splitterStartWrapWidth;
+
+function _splitterStart(clientX) {
+  _splitterDragging = true;
+  _splitterStartX = clientX;
+  _splitterStartWrapWidth = document.getElementById('md-editor-wrap').offsetWidth;
   splitter.classList.add('dragging');
-  e.preventDefault();
-});
-document.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  const dx = e.clientX - startX;
-  const ed = document.getElementById('md-editor');
-  const pv = document.getElementById('preview-pane');
-  const total = ed.offsetWidth + pv.offsetWidth;
-  const newEdWidth = Math.max(200, Math.min(total - 200, startEditorWidth + dx));
-  ed.style.flex = 'none';
-  ed.style.width = newEdWidth + 'px';
-  pv.style.flex = '1';
-});
-document.addEventListener('mouseup', () => {
-  dragging = false;
+}
+
+function _splitterMove(clientX) {
+  if (!_splitterDragging) return;
+  const wrap  = document.getElementById('md-editor-wrap');
+  const pv    = document.getElementById('preview-pane');
+  const total = wrap.offsetWidth + splitter.offsetWidth + pv.offsetWidth;
+  const dx    = clientX - _splitterStartX;
+  const newW  = Math.max(200, Math.min(total - 200, _splitterStartWrapWidth + dx));
+  wrap.style.flex  = 'none';
+  wrap.style.width = newW + 'px';
+  pv.style.flex    = '1';
+  pv.style.width   = '';
+}
+
+function _splitterEnd() {
+  _splitterDragging = false;
   splitter.classList.remove('dragging');
-});
+}
+
+splitter.addEventListener('mousedown', e => { _splitterStart(e.clientX); e.preventDefault(); });
+document.addEventListener('mousemove', e => _splitterMove(e.clientX));
+document.addEventListener('mouseup',   _splitterEnd);
+
+// Touch support (e.g. Android preview mode)
+splitter.addEventListener('touchstart', e => { _splitterStart(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove',  e => { if (_splitterDragging) { _splitterMove(e.touches[0].clientX); e.preventDefault(); } }, { passive: false });
+document.addEventListener('touchend',   _splitterEnd);
 
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
