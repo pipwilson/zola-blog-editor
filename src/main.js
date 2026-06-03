@@ -229,7 +229,7 @@ window.autoSlug = function() {
 function buildFrontmatter({ title, isDraft, date, tags, slug }) {
   const d = date || todayISO();
   const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-  let fm = `+++\ntitle = "${title}"\ndate = ${d}\n`;
+  let fm = `+++\ntitle = "${title}"\ndate = "${d}"\n`;
   if (isDraft) fm += `draft = true\n`;
   if (tagList.length) fm += `\n[taxonomies]\ntags = [${tagList.map(t => `"${t}"`).join(', ')}]\n`;
   fm += `+++\n\n`;
@@ -636,7 +636,7 @@ window.confirmNewFolder = async function() {
 
   const folderSlug = slugify(name) || name.toLowerCase().replace(/\s+/g, '-');
   const path = `${parentPath}/${folderSlug}/_index.md`;
-  const content = `+++\ntitle = "${name}"\ndate = ${todayISO()}\nsort_by = "date"\n+++\n`;
+  const content = `+++\ntitle = "${name}"\ndate = "${todayISO()}"\nsort_by = "date"\n+++\n`;
 
   window.closeNewFolderModal();
 
