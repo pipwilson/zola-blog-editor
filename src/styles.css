@@ -620,6 +620,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Splitter */
 #splitter {
+  display: none;
   width: 4px;
   cursor: col-resize;
   background: transparent;
