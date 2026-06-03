@@ -206,10 +206,10 @@ body {
 .tree-file.active { background: var(--bg3); border-color: var(--border2); }
 .tree-dir { color: var(--text2); margin-top: 2px; }
 .tree-arrow {
-  font-size: 9px;
+  font-size: 13px;
   color: var(--text3);
   flex-shrink: 0;
-  width: 10px;
+  width: 14px;
   text-align: center;
 }
 .tree-name {
