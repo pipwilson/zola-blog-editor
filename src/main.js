@@ -931,8 +931,10 @@ function updatePreview() {
     // Strip HTML comments (<!-- more --> etc.) before the paragraph wrapper;
     // without this they survive as invisible real comments after innerHTML decoding.
     .replace(/&lt;!--.*?--&gt;/g, '')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    // Image MUST come before link: the link regex would otherwise consume
+    // the [alt](url) part of ![alt](url) before the image regex can match.
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
+    .replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
     // Resolve root-relative URLs so links and images work from the preview pane
     .replace(/(href|src)="(\/[^"]*?)"/g, '$1="https://philwilson.org$2"')
     .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
