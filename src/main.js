@@ -928,6 +928,10 @@ function updatePreview() {
     .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
     .replace(/^---$/gm, '<hr/>')
+    // HTML comments must be replaced BEFORE the paragraph wrapper; after
+    // escaping they look like &lt;!-- ... --&gt;. If left as-is they would
+    // be decoded back to <!-- --> by innerHTML and become invisible comments.
+    .replace(/&lt;!--.*?--&gt;/g, '<span class="preview-comment">$&</span>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
     .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
@@ -973,6 +977,9 @@ function highlightMarkdown(raw) {
       return `<span class="mh-fence">${el}</span>`;
     }
     if (inCodeBlock) return `<span class="mh-code-block">${el}</span>`;
+
+    // HTML comments (<!-- ... -->) including Zola's <!-- more --> separator
+    if (/^<!--/.test(line)) return `<span class="mh-comment">${el}</span>`;
 
     // Block-level
     if (/^#{1,6} /.test(line))             return `<span class="mh-h">${applyInlineHighlight(el)}</span>`;
