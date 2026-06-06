@@ -928,12 +928,13 @@ function updatePreview() {
     .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
     .replace(/^---$/gm, '<hr/>')
-    // HTML comments must be replaced BEFORE the paragraph wrapper; after
-    // escaping they look like &lt;!-- ... --&gt;. If left as-is they would
-    // be decoded back to <!-- --> by innerHTML and become invisible comments.
-    .replace(/&lt;!--.*?--&gt;/g, '<span class="preview-comment">$&</span>')
+    // Strip HTML comments (<!-- more --> etc.) before the paragraph wrapper;
+    // without this they survive as invisible real comments after innerHTML decoding.
+    .replace(/&lt;!--.*?--&gt;/g, '')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
+    // Resolve root-relative URLs so links and images work from the preview pane
+    .replace(/(href|src)="(\/[^"]*?)"/g, '$1="https://philwilson.org$2"')
     .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
     .replace(/<p><\/p>/g, '');
   document.getElementById('preview-pane').innerHTML = html;
