@@ -1,3 +1,5 @@
+import { marked } from 'marked';
+
 // ── Tauri integration ──────────────────────────────────────────────
 // Config is persisted via custom Rust commands (load_config / save_config)
 // which use the store plugin's Rust API directly.
@@ -912,33 +914,13 @@ window.togglePreview = function() {
 function updatePreview() {
   if (!previewing) return;
   const { body: md } = parseFrontmatter(document.getElementById('md-editor').value);
-  // Basic Markdown renderer
-  let html = md
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code class="lang-${lang}">${code}</code></pre>`)
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-    .replace(/^#{6} (.+)$/gm, '<h6>$1</h6>')
-    .replace(/^#{5} (.+)$/gm, '<h5>$1</h5>')
-    .replace(/^#{4} (.+)$/gm, '<h4>$1</h4>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/^---$/gm, '<hr/>')
-    // Strip HTML comments (<!-- more --> etc.) before the paragraph wrapper;
-    // without this they survive as invisible real comments after innerHTML decoding.
-    .replace(/&lt;!--.*?--&gt;/g, '')
-    // Image MUST come before link: the link regex would otherwise consume
-    // the [alt](url) part of ![alt](url) before the image regex can match.
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">')
-    .replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+
+  let html = marked.parse(md)
+    // Strip HTML comments (<!-- more --> etc.) — marked passes them through as-is
+    .replace(/<!--[\s\S]*?-->/g, '')
     // Resolve root-relative URLs so links and images work from the preview pane
-    .replace(/(href|src)="(\/[^"]*?)"/g, '$1="https://philwilson.org$2"')
-    .replace(/^(?!<[h1-6b|p|u|o|l|c|b|d|s|t|h|i|a|>])(.+)$/gm, '<p>$1</p>')
-    .replace(/<p><\/p>/g, '');
+    .replace(/(href|src)="(\/[^"]*?)"/g, '$1="https://philwilson.org$2"');
+
   document.getElementById('preview-pane').innerHTML = html;
 }
 
