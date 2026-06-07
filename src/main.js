@@ -528,6 +528,7 @@ window.openTreeFile = async function(path, sha) {
       document.getElementById('fm-slug').value = '';
       document.getElementById('md-editor').value = raw;
       document.getElementById('unpub-btn').style.display = 'none';
+      document.getElementById('save-btn').style.display = '';
     } else {
       setFrontmatterEditable(true);
       document.getElementById('post-title-input').value = fm.title;
@@ -538,6 +539,7 @@ window.openTreeFile = async function(path, sha) {
       document.getElementById('fm-slug').value = fm.slug || filenameSlug;
       window.slugEdited = true;
       document.getElementById('unpub-btn').style.display = !fm.draft ? 'inline-flex' : 'none';
+      document.getElementById('save-btn').style.display = fm.draft ? '' : 'none';
     }
     setStatus(path);
     updateWordCount();
@@ -806,6 +808,7 @@ window.saveDraft = async function() {
       _newPostFolder = '';
     }
     document.getElementById('unpub-btn').style.display = 'none';
+    document.getElementById('save-btn').style.display = '';
     renderTree();
     setStatus(path);
   } catch (e) {
@@ -849,6 +852,7 @@ window.publish = async function() {
       _newPostFolder = '';
     }
     document.getElementById('unpub-btn').style.display = 'inline-flex';
+    document.getElementById('save-btn').style.display = 'none';
     renderTree();
     setStatus(path);
   } catch (e) {
@@ -879,6 +883,7 @@ window.unpublish = async function() {
         { title: document.getElementById('post-title-input').value, draft: true, date: document.getElementById('fm-date').value });
     }
     document.getElementById('unpub-btn').style.display = 'none';
+    document.getElementById('save-btn').style.display = '';
     renderTree();
   } catch (e) {
     toast('failed: ' + e.message, 'error');
