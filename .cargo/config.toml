@@ -1,5 +1,0 @@
-[build]
-# Keep build artefacts outside Dropbox to prevent file-lock conflicts
-# (Dropbox holds open handles on files it's syncing, which breaks Cargo's
-# temp-archive cleanup on Windows — os error 32 / os error 5).
-target-dir = "C:\\Users\\pip\\.cargo-targets\\zola-blog-editor"

@@ -31,6 +31,7 @@ fn load_config(app: tauri::AppHandle) -> serde_json::Value {
         "repo":      get_str("repo"),
         "branch":    get_str("branch"),
         "postsPath": posts_path,
+        "siteUrl":   get_str("siteUrl"),
     })
 }
 
@@ -59,12 +60,14 @@ fn save_config(
     repo: String,
     branch: String,
     posts_path: String,
+    site_url: String,
 ) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     store.set("token",     token);
     store.set("repo",      repo);
     store.set("branch",    branch);
     store.set("postsPath", posts_path);
+    store.set("siteUrl",   site_url);
     store.save().map_err(|e| e.to_string())?;
     Ok(())
 }

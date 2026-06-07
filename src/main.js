@@ -32,6 +32,7 @@ async function savePersistedConfig() {
       repo:      cfg.repo,
       branch:    cfg.branch,
       postsPath: cfg.postsPath,
+      siteUrl:   cfg.siteUrl,
     });
     console.log('config saved');
   } catch (e) {
@@ -141,7 +142,7 @@ document.addEventListener('mousedown', e => {
 });
 
 // ── State ──────────────────────────────────────────────────────────
-let cfg = { token: '', repo: '', branch: 'main', postsPath: 'content/blog' };
+let cfg = { token: '', repo: '', branch: 'main', postsPath: 'content/blog', siteUrl: '' };
 let _treeItems = [];      // [{path, type, sha, relPath}] from GitHub tree API
 let _allRepoDirs = [];    // all directories in repo (for upload picker)
 let _expandedDirs = new Set();
@@ -936,7 +937,8 @@ function updatePreview() {
     // Strip HTML comments (<!-- more --> etc.) — marked passes them through as-is
     .replace(/<!--[\s\S]*?-->/g, '')
     // Resolve root-relative URLs so links and images work from the preview pane
-    .replace(/(href|src)="(\/[^"]*?)"/g, '$1="https://philwilson.org$2"');
+    .replace(/(href|src)="(\/[^"]*?)"/g, (_, attr, path) =>
+      `${attr}="${cfg.siteUrl ? cfg.siteUrl + path : path}"`);
 
   document.getElementById('preview-pane').innerHTML = html;
 }
@@ -978,6 +980,7 @@ window.openSettings = function() {
   document.getElementById('cfg-repo').value = cfg.repo;
   document.getElementById('cfg-branch').value = cfg.branch;
   document.getElementById('cfg-path').value = cfg.postsPath;
+  document.getElementById('cfg-siteurl').value = cfg.siteUrl;
   // Seed dropdown with current repo so it's selectable even before re-validating
   if (cfg.repo && !_allRepos.includes(cfg.repo)) {
     _allRepos = [cfg.repo, ..._allRepos.filter(r => r !== cfg.repo)];
@@ -1001,10 +1004,11 @@ window.modalOk = async function() {
   const repo = document.getElementById('cfg-repo').value.trim();
   const branch = document.getElementById('cfg-branch').value.trim() || 'main';
   const postsPath = document.getElementById('cfg-path').value.trim() || 'content/blog';
+  const siteUrl = document.getElementById('cfg-siteurl').value.trim().replace(/\/$/, '');
 
   if (!token || !repo) { toast('token and repo are required', 'error'); return; }
 
-  cfg = { token, repo, branch, postsPath };
+  cfg = { token, repo, branch, postsPath, siteUrl };
   _configRequired = false;
 
   await savePersistedConfig();
@@ -1103,6 +1107,7 @@ async function init() {
       // Rust returns posts_path (snake_case); JS config uses postsPath
       if (saved.postsPath || saved.posts_path)
         cfg.postsPath = saved.postsPath || saved.posts_path;
+      if (saved.siteUrl) cfg.siteUrl = saved.siteUrl;
     }
 
     if (cfg.repo) {

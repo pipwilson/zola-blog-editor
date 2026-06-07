@@ -3,6 +3,9 @@ src-tauri/target/
 .claude/
 *.local
 
+# Local Cargo config (contains machine-specific target-dir path)
+.cargo/config.toml
+
 # Android IDE/Gradle caches
 src-tauri/gen/android/.idea/
 src-tauri/gen/android/.gradle/
