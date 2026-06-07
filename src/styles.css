@@ -311,8 +311,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   align-items: center;
   gap: 5px;
   color: var(--text3);
+  min-width: 0;
 }
+#frontmatter-bar label:has(#fm-slug) { flex: 33 1 0; }
+#frontmatter-bar label:has(#fm-date) { flex: 16 1 0; }
+#frontmatter-bar label:has(#fm-tags) { flex: 51 1 0; }
 #frontmatter-bar input[type=text] {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   padding: 3px 7px;
   border-radius: var(--radius);
@@ -323,9 +329,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-family: var(--font-mono);
 }
 #frontmatter-bar input[type=text]:focus { border-color: var(--border2); }
-#fm-date { width: 100px; }
-#fm-tags { width: 160px; }
-#fm-slug { width: 240px; }
 
 /* Editor area */
 #editor-area {
@@ -336,6 +339,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #md-editor-wrap {
   flex: 1;
   position: relative;
+  font-variant-ligatures: none;
   overflow: hidden;
   min-width: 0;
   background: var(--bg);

@@ -43,16 +43,16 @@
   <div id="editor-pane">
     <div id="toolbar">
       <input type="text" id="post-title-input" placeholder="post title…" autocomplete="off" oninput="markDirty(); autoSlug()" />
+      <button class="danger" onclick="unpublish()" id="unpub-btn" style="display:none">⊘ move back to draft</button>
       <div class="sep"></div>
       <button onclick="togglePreview()" id="preview-btn">◎ preview</button>
       <button onclick="saveDraft()" id="save-btn">⬡ publish draft</button>
       <button class="primary" onclick="publish()" id="pub-btn">→ publish</button>
-      <button class="danger" onclick="unpublish()" id="unpub-btn" style="display:none">⊘ move back to draft</button>
     </div>
     <div id="frontmatter-bar">
-      <label>date <input type="text" id="fm-date" placeholder="2025-05-19" oninput="markDirty()" style="width:100px" /></label>
-      <label>tags <input type="text" id="fm-tags" oninput="markDirty()" style="width:150px" /></label>
       <label>slug <input type="text" id="fm-slug" autocomplete="off" oninput="markDirty(); window.slugEdited=true" /></label>
+      <label>date <input type="text" id="fm-date" placeholder="2025-05-19" oninput="markDirty()" /></label>
+      <label>tags <input type="text" id="fm-tags" oninput="markDirty()" /></label>
     </div>
     <div id="editor-area">
       <div id="md-editor-wrap">
