@@ -241,48 +241,45 @@ function buildFrontmatter({ title, isDraft, date, tags, slug }) {
 }
 
 function parseFrontmatter(raw) {
-  // TOML frontmatter (+++ delimiters)
-  let m = raw.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+\n?([\s\S]*)$/);
-  if (m) {
-    const header = m[1];
-    const body = m[2].replace(/^\n/, '');
+  const m = raw.match(/^(\+{3}|---)\n([\s\S]*?)\n\1\n?([\s\S]*)$/);
+  if (!m) return { title: '', slug: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
+
+  const header = m[2];
+  const body = m[3].replace(/^\n/, '');
+
+  // Detect format by content: TOML uses key = value, YAML uses key: value
+  const isToml = /^\s*\w[\w-]*\s*=/m.test(header);
+
+  if (isToml) {
     const title = (header.match(/title\s*=\s*"([^"]*)"/) || [])[1] || '';
     const draft = /draft\s*=\s*true/.test(header);
-    const date = ((header.match(/date\s*=\s*["']?(\S+?)["']?\s*$/) || [])[1] || '').replace(/["']/g, '');
+    const date = (header.match(/^date\s*=\s*["']?([^"'\s\r]+)/m) || [])[1] || '';
     const description = (header.match(/description\s*=\s*"([^"]*)"/) || [])[1] || '';
     const slug = (header.match(/slug\s*=\s*"([^"]*)"/) || [])[1] || '';
-    // Tags live under [taxonomies] in Zola; also handle top-level tags = [...]
     const taxSection = header.match(/\[taxonomies\]([\s\S]*?)(?=\n\[|\s*$)/);
     const tagSource = taxSection ? taxSection[1] : header;
     const tagMatch = tagSource.match(/\btags\s*=\s*\[([^\]]*)\]/);
     const tags = tagMatch ? tagMatch[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ') : '';
     return { title, slug, draft, date, tags, description, body, format: 'toml' };
   }
-  // YAML frontmatter (--- delimiters)
-  m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (m) {
-    const header = m[1];
-    const body = m[2].replace(/^\n/, '');
-    const title = ((header.match(/^title:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
-    const draft = /^draft:\s*true\s*$/m.test(header);
-    const date = (header.match(/^date:\s*(\S+)/m) || [])[1] || '';
-    const description = ((header.match(/^description:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
-    const slug = ((header.match(/^slug:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
-    // Tags: look under taxonomies.tags first (Zola convention), then top-level tags
-    // Matches both inline [a, b] and block list (- item) forms in either location
-    function extractYamlTags(source) {
-      const inline = source.match(/^[ \t]*tags:\s*\[([^\]]*)\]\s*$/m);
-      if (inline) return inline[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
-      const block = source.match(/^[ \t]*tags:\s*\n((?:[ \t]*-[^\n]*\n?)*)/m);
-      if (block) return [...block[1].matchAll(/[ \t]*-\s*["']?(.+?)["']?\s*$/gm)].map(t => t[1].trim()).join(', ');
-      return '';
-    }
-    const taxSection = header.match(/^taxonomies:\s*\n((?:[ \t]+\S[^\n]*\n?)*)/m);
-    let tags = taxSection ? extractYamlTags(taxSection[1]) : '';
-    if (!tags) tags = extractYamlTags(header);
-    return { title, slug, draft, date, tags, description, body, format: 'yaml' };
+
+  // YAML
+  const title = ((header.match(/^title:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+  const draft = /^draft:\s*true\s*$/m.test(header);
+  const date = (header.match(/^date:\s*(\S+)/m) || [])[1] || '';
+  const description = ((header.match(/^description:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+  const slug = ((header.match(/^slug:\s*["']?(.+?)["']?\s*$/m) || [])[1] || '').trim();
+  function extractYamlTags(source) {
+    const inline = source.match(/^[ \t]*tags:\s*\[([^\]]*)\]\s*$/m);
+    if (inline) return inline[1].replace(/["']/g, '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
+    const block = source.match(/^[ \t]*tags:\s*\n((?:[ \t]*-[^\n]*\n?)*)/m);
+    if (block) return [...block[1].matchAll(/[ \t]*-\s*["']?(.+?)["']?\s*$/gm)].map(t => t[1].trim()).join(', ');
+    return '';
   }
-  return { title: '', slug: '', draft: false, date: '', tags: '', description: '', body: raw, format: 'toml' };
+  const taxSection = header.match(/^taxonomies:\s*\n((?:[ \t]+\S[^\n]*\n?)*)/m);
+  let tags = taxSection ? extractYamlTags(taxSection[1]) : '';
+  if (!tags) tags = extractYamlTags(header);
+  return { title, slug, draft, date, tags, description, body, format: 'yaml' };
 }
 
 // ── GitHub API ────────────────────────────────────────────────────
