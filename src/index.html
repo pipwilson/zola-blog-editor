@@ -32,7 +32,7 @@
           <button onclick="newFolder()" title="New folder">+ new folder</button>
         </div>
         <div class="action-row">
-          <button onclick="uploadFile()" title="Upload a file to the repo">↑ upload</button>
+          <button onclick="uploadFile()" title="Upload image to /static/images">↑ upload image</button>
           <button id="theme-btn" onclick="cycleTheme()" title="Switch theme">○ theme</button>
         </div>
       </div>
@@ -114,9 +114,12 @@
 
 <div id="ul-overlay">
   <div id="ul-modal">
-    <h3>Upload file</h3>
-    <label>Upload to</label>
-    <select id="ul-folder"></select>
+    <h3>Upload image</h3>
+    <label>Destination</label>
+    <div class="ul-dest-row">
+      <span class="ul-base">static/images/</span>
+      <input type="text" id="ul-subfolder" placeholder="2026/06" autocomplete="off" />
+    </div>
     <label>File</label>
     <div class="ul-file-row">
       <input type="text" id="ul-filename" placeholder="no file chosen" readonly />
@@ -153,6 +156,7 @@
 
 <div id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
 <script type="module" src="main.js"></script>
 </body>
 </html>

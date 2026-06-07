@@ -79,15 +79,13 @@ html[data-theme="eink"] * {
 }
 
 /* E-ink: syntax highlighting uses weight/style rather than colour */
-html[data-theme="eink"] .mh-h          { color: #000; font-weight: 800; }
-html[data-theme="eink"] .mh-fm         { color: var(--text3); }
-html[data-theme="eink"] .mh-quote      { color: var(--text3); font-style: italic; }
-html[data-theme="eink"] .mh-fence,
-html[data-theme="eink"] .mh-code-block,
-html[data-theme="eink"] .mh-code       { color: #000; font-style: italic; }
-html[data-theme="eink"] .mh-em         { color: #000; font-style: italic; }
-html[data-theme="eink"] .mh-link       { color: #000; text-decoration: underline; }
-html[data-theme="eink"] .mh-bold       { font-weight: 800; }
+html[data-theme="eink"] .hljs-section  { color: #000; font-weight: 800; }
+html[data-theme="eink"] .hljs-code     { color: #000; font-style: italic; }
+html[data-theme="eink"] .hljs-emphasis { color: #000; font-style: italic; }
+html[data-theme="eink"] .hljs-strong   { font-weight: 800; }
+html[data-theme="eink"] .hljs-link     { color: #000; text-decoration: underline; }
+html[data-theme="eink"] .hljs-quote    { color: var(--text3); font-style: italic; }
+html[data-theme="eink"] .hljs-comment  { color: var(--text3); font-style: italic; }
 
 /* E-ink: badges — use inverted fill instead of colour */
 html[data-theme="eink"] .badge-draft { background: var(--bg3); color: #000; border: 1px solid #666 !important; }
@@ -356,18 +354,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   tab-size: 2;
   color: var(--text);
 }
-/* Syntax highlight classes */
-.mh-fm         { color: var(--text3); }
-.mh-h          { color: var(--accent); font-weight: 600; }
-.mh-quote      { color: var(--text3); }
-.mh-hr         { color: var(--text3); }
-.mh-fence      { color: var(--mh-code); }
-.mh-code-block { color: var(--mh-code); }
-.mh-code       { color: var(--mh-code); }
-.mh-bold       { font-weight: 700; }
-.mh-em         { font-style: italic; color: var(--text2); }
-.mh-link       { color: var(--accent); text-decoration: underline; }
-.mh-comment    { color: var(--text3); font-style: italic; }
+/* Syntax highlight classes (highlight.js markdown) */
+.hljs-section  { color: var(--accent); font-weight: 600; }
+.hljs-bullet   { color: var(--accent); }
+.hljs-code     { color: var(--mh-code); }
+.hljs-emphasis { font-style: italic; color: var(--text2); }
+.hljs-strong   { font-weight: 700; }
+.hljs-link     { color: var(--accent); text-decoration: underline; }
+.hljs-quote    { color: var(--text3); }
+.hljs-comment  { color: var(--text3); font-style: italic; }
 .preview-comment { color: var(--text3); font-style: italic; }
 #md-editor {
   position: absolute;
@@ -410,6 +405,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #preview-pane pre code { background: none; padding: 0; }
 #preview-pane blockquote { border-left: 3px solid var(--border2); padding-left: 14px; color: var(--text2); margin: 0.5em 0 0.8em; }
 #preview-pane hr { border: none; border-top: 0.5px solid var(--border2); margin: 1.5em 0; }
+#preview-pane img { max-width: 100%; height: auto; }
 
 /* ── Safe-area insets (Android status bar / navigation bar) ── */
 /* viewport-fit=cover lets us draw edge-to-edge; these rules push
@@ -538,6 +534,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #np-actions,
 #nf-actions,
 #ul-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+.ul-dest-row { display: flex; align-items: center; gap: 0; }
+.ul-base { font-size: 11px; color: var(--text3); white-space: nowrap; padding: 0 4px 0 0; }
+.ul-dest-row input { flex: 1; min-width: 0; }
 .ul-file-row { display: flex; gap: 6px; align-items: center; }
 .ul-file-row input { flex: 1; min-width: 0; }
 .ul-file-row button { flex: none; }

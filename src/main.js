@@ -143,6 +143,7 @@ document.addEventListener('mousedown', e => {
 // ── State ──────────────────────────────────────────────────────────
 let cfg = { token: '', repo: '', branch: 'main', postsPath: 'content/blog' };
 let _treeItems = [];      // [{path, type, sha, relPath}] from GitHub tree API
+let _allRepoDirs = [];    // all directories in repo (for upload picker)
 let _expandedDirs = new Set();
 let _fileMetaCache = new Map(); // path -> {title, draft, date}
 let _searchFilter = '';
@@ -338,6 +339,11 @@ window.loadPosts = async function() {
         relPath: item.path.slice(prefix.length + 1) || ''
       }));
 
+    _allRepoDirs = treeData.tree
+      .filter(i => i.type === 'tree')
+      .map(i => i.path)
+      .sort((a, b) => b.localeCompare(a));
+
     // All data is loaded; start with all folders collapsed
     _expandedDirs = new Set([prefix]);
 
@@ -382,8 +388,9 @@ function renderTreeNodes(parentPath, depth) {
     if (item.type === 'tree') {
       const exp = _expandedDirs.has(item.path);
       html += `<div class="tree-item tree-dir" style="padding-left:${8 + pad}px"
-                    onclick="window.toggleDir('${item.path}')"
-                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,'${item.path}','tree')">
+                    data-path="${escapeHtml(item.path)}"
+                    onclick="window.toggleDir(this.dataset.path)"
+                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,this.dataset.path,'tree')">
         <span class="tree-arrow">${exp ? '▾' : '▸'}</span>
         <span class="tree-name">${escapeHtml(name)}</span>
       </div>`;
@@ -395,8 +402,10 @@ function renderTreeNodes(parentPath, depth) {
       const label = name.replace(/\.md$/, '');
       html += `<div class="tree-item tree-file${active ? ' active' : ''}"
                     style="padding-left:${22 + pad}px"
-                    onclick="window.openTreeFile('${item.path}', '${item.sha}')"
-                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,'${item.path}','blob')">
+                    data-path="${escapeHtml(item.path)}"
+                    data-sha="${item.sha}"
+                    onclick="window.openTreeFile(this.dataset.path, this.dataset.sha)"
+                    oncontextmenu="event.stopPropagation();window.showCtxMenu(event,this.dataset.path,'blob')">
         <span class="tree-name">${escapeHtml(label)}</span>
         ${meta ? `<span class="badge ${meta.draft ? 'badge-draft' : 'badge-pub'}">${meta.draft ? 'draft' : 'live'}</span>` : ''}
       </div>`;
@@ -672,12 +681,13 @@ let _uploadFileData = null; // { name, base64 }
 
 window.uploadFile = function() {
   if (!cfg.token || !cfg.repo) { openSettings(); return; }
-  _populateFolderSelect('ul-folder', null);
   _uploadFileData = null;
+  document.getElementById('ul-subfolder').value = '';
   document.getElementById('ul-filename').value = '';
   document.getElementById('ul-file-input').value = '';
   document.getElementById('ul-confirm-btn').disabled = true;
   document.getElementById('ul-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('ul-subfolder').focus(), 50);
 };
 
 window.closeUploadModal = function() {
@@ -699,7 +709,9 @@ window.handleUploadFileSelect = function(input) {
 
 window.confirmUpload = async function() {
   if (!_uploadFileData) return;
-  const folder = document.getElementById('ul-folder').value;
+  const sub = document.getElementById('ul-subfolder').value.trim().replace(/^\/+|\/+$/g, '');
+  const base = 'static/images';
+  const folder = sub ? `${base}/${sub}` : base;
   const path = `${folder}/${_uploadFileData.name}`;
   window.closeUploadModal();
   setStatus('uploading…');
@@ -932,52 +944,15 @@ function updatePreview() {
 window.updatePreview = updatePreview;
 
 // ── Markdown syntax highlighting ──────────────────────────────────
-function applyInlineHighlight(l) {
-  l = l.replace(/(`[^`]+`)/g,             '<span class="mh-code">$1</span>');
-  l = l.replace(/(\*\*[^*\n]+?\*\*)/g,   '<span class="mh-bold">$1</span>');
-  l = l.replace(/(\*[^*\n]+?\*)/g,       '<span class="mh-em">$1</span>');
-  l = l.replace(/(\[[^\]\n]+\]\([^)\n]+\))/g, '<span class="mh-link">$1</span>');
-  return l;
-}
-
 function highlightMarkdown(raw) {
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const lines = raw.split('\n');
-  let inCodeBlock = false;
-  let inFrontmatter = false;
-  let fmDelimiter = '';
-
-  return lines.map((line, idx) => {
-    const el = esc(line);
-
-    // Frontmatter block at top of file
-    if (idx === 0 && (line === '+++' || line === '---')) {
-      inFrontmatter = true;
-      fmDelimiter = line;
-      return `<span class="mh-fm">${el}</span>`;
-    }
-    if (inFrontmatter) {
-      if (line === fmDelimiter) inFrontmatter = false;
-      return `<span class="mh-fm">${el}</span>`;
-    }
-
-    // Fenced code blocks
-    if (/^```/.test(line)) {
-      inCodeBlock = !inCodeBlock;
-      return `<span class="mh-fence">${el}</span>`;
-    }
-    if (inCodeBlock) return `<span class="mh-code-block">${el}</span>`;
-
-    // HTML comments (<!-- ... -->) including Zola's <!-- more --> separator
-    if (/^<!--/.test(line)) return `<span class="mh-comment">${el}</span>`;
-
-    // Block-level
-    if (/^#{1,6} /.test(line))             return `<span class="mh-h">${applyInlineHighlight(el)}</span>`;
-    if (/^>/.test(line))                   return `<span class="mh-quote">${el}</span>`;
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) return `<span class="mh-hr">${el}</span>`;
-
-    return applyInlineHighlight(el);
-  }).join('\n');
+  // hljs has no concept of TOML/YAML frontmatter — pre-process it as a dim block
+  const fmMatch = raw.match(/^(\+{3}|---)\n[\s\S]*?\n\1(?:\n|$)/);
+  if (fmMatch) {
+    const fm = fmMatch[0];
+    const esc = fm.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<span class="hljs-comment">${esc}</span>${hljs.highlight(raw.slice(fm.length), { language: 'markdown' }).value}`;
+  }
+  return hljs.highlight(raw, { language: 'markdown' }).value;
 }
 
 function updateHighlight() {
