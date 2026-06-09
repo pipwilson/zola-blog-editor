@@ -937,7 +937,7 @@ function updatePreview() {
     .replace(/<!--[\s\S]*?-->/g, '')
     // Resolve root-relative URLs so links and images work from the preview pane
     .replace(/(href|src)="(\/[^"]*?)"/g, (_, attr, path) =>
-      `${attr}="${cfg.siteUrl ? cfg.siteUrl + path : path}"`);
+      `${attr}="${(cfg.siteUrl || 'http://localhost:1111') + path}"`);
 
   document.getElementById('preview-pane').innerHTML = html;
 }
