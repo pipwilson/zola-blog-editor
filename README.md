@@ -8,6 +8,10 @@ This project was authored by [Claude Code](https://claude.com/product/claude-cod
 
 It operates directly on your project in GitHub. It does not download your files to work on locally
 
+It provides user-selectable light, dark and e-ink specific themes.
+
+A screenshot of Zola Blog Editor running on an e-ink android device:
+
 ![A screenshot of Zola Blog Editor running on an e-ink android device](zola-blog-editor-2026-06-09.png)
 
 ## Features
