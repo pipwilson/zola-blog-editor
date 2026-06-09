@@ -21,7 +21,6 @@ A screenshot of Zola Blog Editor running on an e-ink android device:
 - Live split-pane preview (resizable)
 - TOML (`+++`) and YAML (`---`) frontmatter support — title, date, tags, slug
 - Publish to GitHub with one click (commits via the GitHub Contents API)
-- Save a local draft without committing to GitHub
 - Move published posts back to draft
 - Right-click context menu: new post in folder, rename
 - Config and GitHub token persisted in the OS keychain via `tauri-plugin-store`
