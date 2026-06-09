@@ -194,10 +194,12 @@ function setStatus(path, words, chars) {
 
 function markDirty() {
   dirty = true;
+  document.getElementById('pub-btn').disabled = false;
 }
 
 function markClean() {
   dirty = false;
+  document.getElementById('pub-btn').disabled = true;
 }
 
 function updateWordCount() {

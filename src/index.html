@@ -47,7 +47,7 @@
       <div class="sep"></div>
       <button onclick="togglePreview()" id="preview-btn">◎ preview</button>
       <button onclick="saveDraft()" id="save-btn">⬡ publish draft</button>
-      <button class="primary" onclick="publish()" id="pub-btn">→ publish</button>
+      <button class="primary" onclick="publish()" id="pub-btn" disabled>→ publish</button>
     </div>
     <div id="frontmatter-bar">
       <label>slug <input type="text" id="fm-slug" autocomplete="off" oninput="markDirty(); window.slugEdited=true" /></label>
