@@ -1,8 +1,14 @@
 # Zola Blog Editor
 
-A desktop (and Android) app for writing and publishing posts to a [Zola](https://www.getzola.org/) static site hosted on GitHub. Write in Markdown, manage drafts, and commit directly to your repo — no terminal required.
+A desktop (and Android) app for writing and publishing posts to a [Zola](https://www.getzola.org/) static site hosted on GitHub. Write in Markdown, manage drafts, and commit directly to your repo.
 
 Built with [Tauri 2](https://tauri.app/): a Rust backend wrapping a WebView frontend, with native credential storage and local file operations.
+
+This project was authored by [Claude Code](https://claude.com/product/claude-code).
+
+It operates directly on your project in GitHub. It does not download your files to work on locally
+
+![A screenshot of Zola Blog Editor running on an e-ink android device](zola-blog-editor-2026-06-09.png)
 
 ## Features
 
@@ -110,7 +116,7 @@ npm run android:dev              # Android — requires a connected device or ru
 Install the debug APK directly via ADB:
 
 ```powershell
-adb install src-tauri\gen\android\app\build\outputs\apk\universal\debug\app-universal-debug.apk
+adb install -r src-tauri\gen\android\app\build\outputs\apk\universal\debug\app-universal-debug.apk
 ```
 
 **Signing the release APK for distribution:**
